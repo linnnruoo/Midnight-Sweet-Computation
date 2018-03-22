@@ -31,10 +31,10 @@ volatile TDirection dir = STOP;
 
 // Motor control pins. You need to adjust these till
 // Vincent moves in the correct direction
-#define LF                  6   // Left forward pin
-#define LR                  5   // Left reverse pin
-#define RF                  10  // Right forward pin
-#define RR                  11  // Right reverse pin
+#define LF                  10   // Left forward pin
+#define LR                  11   // Left reverse pin
+#define RF                  6  // Right forward pin
+#define RR                  5  // Right reverse pin
 
 // PI, for calculating turn circumference
 #define PI                  3.141592654
