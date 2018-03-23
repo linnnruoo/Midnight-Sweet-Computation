@@ -40,8 +40,8 @@ volatile TDirection dir = STOP;
 #define PI                  3.141592654
 
 // Vincent's length and breadth in cm
-#define VINCENT_LENGTH      16
-#define VINCENT_BREADTH     6
+#define VINCENT_LENGTH      17.20
+#define VINCENT_BREADTH     10.90
 
 /*
  *    Vincent's State Variables
@@ -208,7 +208,7 @@ void enablePullups() {
   // 2 and 3. These are pins PD2 and PD3 respectively.
   // We set bits 2 and 3 in DDRD to 0 to make them inputs.
   DDRD &= 0b11110011; // Set port 2 and 3 as output
-  PORTD &= 0b00001100;    // Set port 2 and 3 as HIGH output  
+  PORTD |= 0b00001100;    // Set port 2 and 3 as HIGH output  
 }
 
 // Functions to be called by INT0 and INT1 ISRs.
