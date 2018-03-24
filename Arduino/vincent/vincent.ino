@@ -374,14 +374,9 @@ void forward(float dist, float speed) {
 
   newDist = forwardDist + deltaDist;
   
-  // For now we will ignore dist and move
-  // forward indefinitely. We will fix this
-  // in Week 9.
-  
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-    
   analogWrite(LF, val);
   analogWrite(RF, val);
   analogWrite(LR,0);
@@ -404,10 +399,6 @@ void reverse(float dist, float speed) {
     deltaDist = 99999999;
 
   newDist = reverseDist + deltaDist;
-    
-  // For now we will ignore dist and
-  // reverse indefinitely. We will fix this
-  // in Week 9.
     
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
@@ -448,7 +439,6 @@ void left(float ang, float speed) {
 
   targetTicks = leftReverseTicksTurns + deltaTicks;
     
-  // For now we will ignore ang. We will fix this in Week 9.
   // We will also replace this code with bare-metal later.
   // To turn left we reverse the left wheel and move
   // the right wheel forward.
@@ -476,7 +466,6 @@ void right(float ang, float speed) {
 
   targetTicks = rightReverseTicksTurns + deltaTicks;
     
-  // For now we will ignore ang. We will fix this in Week 9.
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
@@ -629,12 +618,6 @@ void handlePacket(TPacket *packet) {
 }
 
 void loop() {
-  // Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
-    
-  //forward(0, 100);
-  
-  // Uncomment the code below for Week 9 Studio 2
-  
   // put your main code here, to run repeatedly:
   TPacket recvPacket; // This holds commands from the Pi
     
