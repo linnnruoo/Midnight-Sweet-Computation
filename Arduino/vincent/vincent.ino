@@ -55,10 +55,10 @@ volatile unsigned long leftReverseTicks;
 volatile unsigned long rightReverseTicks;
 
 // Left and right encoder ticks for turning
-volatile unsigned long leftForwardTicksTurns;
-volatile unsigned long rightForwardTicksTurns;
-volatile unsigned long leftReverseTicksTurns;
-volatile unsigned long rightReverseTicksTurns;
+volatile unsigned long leftForwardTicksTurn;
+volatile unsigned long rightForwardTicksTurn;
+volatile unsigned long leftReverseTicksTurn;
+volatile unsigned long rightReverseTicksTurn;
 
 // Store the revolutions on Vincent's left
 // and right wheels
@@ -82,7 +82,7 @@ unsigned long targetTicks;
 float vincentDiagonal = 0.0;
 
 // Vincent's turning circumference, calculated once
-float vincentCirc = 0.0
+float vincentCirc = 0.0;
 
 
 /*
@@ -122,13 +122,13 @@ void sendStatus() {
   statusPacket.params[1] = rightForwardTicks;
   statusPacket.params[2] = leftReverseTicks;
   statusPacket.params[3] = rightReverseTicks;
-  statusPacket.params[4] = leftForwardTicksTurns;
-  statusPacket.params[5] = rightForwardTicksTurns;
-  statusPacket.params[6] = leftReverseTicksTurns;
-  statusPacket.params[7] = RightReverseTicksTurns;
+  statusPacket.params[4] = leftForwardTicksTurn;
+  statusPacket.params[5] = rightForwardTicksTurn;
+  statusPacket.params[6] = leftReverseTicksTurn;
+  statusPacket.params[7] = rightReverseTicksTurn;
   statusPacket.params[8] = forwardDist;
   statusPacket.params[9] = reverseDist;
-  sendReponse(&statusPacket);
+  sendResponse(&statusPacket);
 }
 
 void sendMessage(const char *message) {
@@ -437,7 +437,7 @@ void left(float ang, float speed) {
     deltaTicks = computeDeltaTicks(ang);
   }
 
-  targetTicks = leftReverseTicksTurns + deltaTicks;
+  targetTicks = leftReverseTicksTurn + deltaTicks;
     
   // We will also replace this code with bare-metal later.
   // To turn left we reverse the left wheel and move
@@ -464,7 +464,7 @@ void right(float ang, float speed) {
     deltaTicks = computeDeltaTicks(ang);
   }
 
-  targetTicks = rightReverseTicksTurns + deltaTicks;
+  targetTicks = rightReverseTicksTurn + deltaTicks;
     
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
@@ -497,10 +497,10 @@ void clearCounters() {
   rightForwardTicks=0;
   rightReverseTicks=0;
   
-  leftForwardTicksTurns=0;
-  leftReverseTicksTurns=0;
-  rightForwardTicksTurns=0;
-  rightReverseTicksTurns=0;
+  leftForwardTicksTurn=0;
+  leftReverseTicksTurn=0;
+  rightForwardTicksTurn=0;
+  rightReverseTicksTurn=0;
   
   //leftRevs=0;
   //rightRevs=0;
@@ -529,11 +529,11 @@ void handleCommand(TPacket *command) {
       sendOK();
       reverse((float) command->params[0], (float) command->params[1]);
       break;
-    case COMMAND_LEFT:
+    case COMMAND_TURN_LEFT:
       sendOK();
       left((float) command->params[0], (float) command->params[1]);
       break;
-    case COMMAND_RIGHT:
+    case COMMAND_TURN_RIGHT:
       sendOK();
       right((float) command->params[0], (float) command->params[1]);
       break;
@@ -656,14 +656,14 @@ void loop() {
 
   if(deltaTicks > 0) {
     if(dir == LEFT) {
-      if(leftReverseTicksTurns >= targetTicks) {
+      if(leftReverseTicksTurn >= targetTicks) {
         deltaTicks = 0;
         targetTicks = 0;
         stop(); 
       }
     }
     else if (dir == RIGHT) {
-      if(rightReverseTicksTurns >= targetTicks) {
+      if(rightReverseTicksTurn >= targetTicks) {
         deltaTicks = 0;
         targetTicks = 0;
         stop();
