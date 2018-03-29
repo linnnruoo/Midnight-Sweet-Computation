@@ -23,6 +23,7 @@ volatile TDirection dir = STOP;
 
 #define COUNTS_PER_REV      192
 
+
 // Wheel circumference in cm.
 // We will use this to calculate forward/backward distance traveled
 // by taking revs * WHEEL_CIRC
@@ -31,13 +32,13 @@ volatile TDirection dir = STOP;
 
 // Motor control pins. You need to adjust these till
 // Vincent moves in the correct direction
-#define LF                  10   // Left forward pin
-#define LR                  11   // Left reverse pin
-#define RF                  6  // Right forward pin
-#define RR                  5  // Right reverse pin
+#define LF                  5   // Left forward pin
+#define LR                  6   // Left reverse pin
+#define RF                  10  // Right forward pin
+#define RR                  11  // Right reverse pin
 
 // PI, for calculating turn circumference
-#define PI                  3.141592654
+//#define PI                  3.141592654
 
 // Vincent's length and breadth in cm
 #define VINCENT_LENGTH      17.20
@@ -251,7 +252,7 @@ void rightISR() {
       rightReverseTicksTurn++;
       break;
   }
-  
+
   //rightTicks++;
   //rightRevs = rightTicks / COUNTS_PER_REV
   //Serial.print("RIGHT: ");
@@ -271,11 +272,11 @@ void setupEINT() {
 // Implement the external interrupt ISRs below.
 // INT0 ISR should call leftISR while INT1 ISR
 // should call rightISR.
-ISR(INT0_vec) {
+ISR(INT0_vect) {
   leftISR();
 }
 
-ISR(INT1_vec) {
+ISR(INT1_vect) {
   rightISR();
 }
 // Implement INT0 and INT1 ISRs above.
