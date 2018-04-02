@@ -68,6 +68,7 @@ void handleResponse(TPacket *packet)
 	}
 }
 
+
 void handleErrorResponse(TPacket *packet)
 {
 	// The error code is returned in command
