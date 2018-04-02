@@ -4,6 +4,27 @@
 #include "packet.h"
 #include "constants.h"
 
+//////////////////////
+//Ultrasonic sensors
+//trigPin: grey jumper
+//echoPin: white jumper 
+//////////////////////
+int trigPinU = 9;
+int echoPinU = 8;
+int duration;
+volatile unsigned long ultraInCm;
+//////////////////////
+//////////////////////
+//IR sensors
+//////////////////////
+#define leftIR A4
+#define rightIR A5
+
+volatile unsigned long rightIRreading;
+volatile unsigned long leftIRreading;
+/////////////////////
+
+
 typedef enum {
   STOP=0,
   FORWARD=1,
@@ -22,6 +43,7 @@ volatile TDirection dir = STOP;
 // wheel encoder.
 
 #define COUNTS_PER_REV      192
+//#define COUNTS_PER_REV_RIGHT      266
 
 
 // Wheel circumference in cm.
@@ -32,10 +54,10 @@ volatile TDirection dir = STOP;
 
 // Motor control pins. You need to adjust these till
 // Vincent moves in the correct direction
-#define LF                  5   // Left forward pin
-#define LR                  6   // Left reverse pin
-#define RF                  10  // Right forward pin
-#define RR                  11  // Right reverse pin
+#define LF                  6   // Left forward pin
+#define LR                  5   // Left reverse pin
+#define RF                  11  // Right forward pin
+#define RR                  10  // Right reverse pin
 
 // PI, for calculating turn circumference
 //#define PI                  3.141592654
@@ -127,8 +149,14 @@ void sendStatus() {
   statusPacket.params[5] = rightForwardTicksTurn;
   statusPacket.params[6] = leftReverseTicksTurn;
   statusPacket.params[7] = rightReverseTicksTurn;
-  statusPacket.params[8] = forwardDist;
+  statusPacket.params[8] = forwardDist;   
   statusPacket.params[9] = reverseDist;
+
+  /////all the werid stuff/////
+  statusPacket.params[10] = ultraInCm; //ultrasound sensor
+  statusPacket.params[11] = leftIRreading;
+  statusPacket.params[12] = rightIRreading;
+
   sendResponse(&statusPacket);
 }
 
@@ -230,6 +258,8 @@ void leftISR() {
       leftForwardTicksTurn++;
       break;
   }
+
+  //Serial.println(leftForwardTicks);
   
   //leftTicks++;
   //leftRevs = leftTicks / COUNTS_PER_REV;
@@ -253,6 +283,7 @@ void rightISR() {
       break;
   }
 
+  //Serial.println(rightForwardTicks);
   //rightTicks++;
   //rightRevs = rightTicks / COUNTS_PER_REV
   //Serial.print("RIGHT: ");
@@ -338,6 +369,10 @@ void setupMotors() {
      *    B1IN - Pin 10, PB2, OC1B
      *    B2In - pIN 11, PB3, OC2A
      */
+//     pinMode(LF, OUTPUT);
+//     pinMode(LR, OUTPUT);
+//     pinMode(RF, OUTPUT);
+//     pinMode(RR, OUTPUT);
 }
 
 // Start the PWM for Vincent's motors.
@@ -502,11 +537,7 @@ void clearCounters() {
   leftReverseTicksTurn=0;
   rightForwardTicksTurn=0;
   rightReverseTicksTurn=0;
-  
-  //leftRevs=0;
-  //rightRevs=0;
-  //forwardDist=0;
-  //reverseDist=0;
+ 
 }
 
 // Clears one particular counter
@@ -545,7 +576,8 @@ void handleCommand(TPacket *command) {
       sendStatus();
       break;
     case COMMAND_CLEAR_STATS:
-      clearOneCounter(command->params[0]);
+      //clearOneCounter(command->params[0]);
+      clearCounters();
       sendOK();
       break;
     default:
@@ -581,8 +613,7 @@ void waitForHello() {
 }
 
 void setup() {
-  // put your setup code here, to run once:
-
+  
   //Compute the diagonal
   vincentDiagonal = sqrt((VINCENT_LENGTH * VINCENT_LENGTH) + (VINCENT_BREADTH * VINCENT_BREADTH));
   vincentCirc = PI * vincentDiagonal;
@@ -593,6 +624,12 @@ void setup() {
   startSerial();
   setupMotors();
   startMotors();
+   
+  pinMode(trigPinU, OUTPUT);
+  pinMode(echoPinU, INPUT);
+  pinMode(leftIR, INPUT);
+  pinMode(rightIR, INPUT);
+  
   enablePullups();
   initializeState();
   sei();
@@ -620,6 +657,24 @@ void handlePacket(TPacket *packet) {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  
+  /////// sensors///////////////////
+  digitalWrite(trigPinU, LOW);
+  digitalWrite(trigPinU, HIGH);
+  digitalWrite(trigPinU, LOW);
+
+  pinMode(echoPinU, INPUT);
+  duration = pulseIn(echoPinU, HIGH);
+  ultraInCm = (duration/2) / 29.1;
+
+
+  //its either CLEAR or TOO NEAR
+  rightIRreading = digitalRead(rightIR);
+  leftIRreading = digitalRead(leftIR);
+
+  /////////////////////////////////
+  
+  
   TPacket recvPacket; // This holds commands from the Pi
     
   TResult result = readPacket(&recvPacket);
