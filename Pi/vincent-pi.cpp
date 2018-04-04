@@ -44,6 +44,9 @@ void handleStatus(TPacket *packet)
 	printf("Right Reverse Ticks Turns:\t%d\n", packet->params[7]);
 	printf("Forward Distance:\t\t%d\n", packet->params[8]);
 	printf("Reverse Distance:\t\t%d\n", packet->params[9]);
+	printf("Ultrasonic Sensor:\t\t%d\n", packet->params[10]);
+    printf("LeftIR reading:\t\t\t%d\n", packet->params[11]);
+    printf("RightIR reading:\t\t%d\n", packet->params[12]);
 	printf("\n---------------------------------------\n\n");
 }
 
@@ -64,6 +67,7 @@ void handleResponse(TPacket *packet)
 			printf("Arduino is confused\n");
 	}
 }
+
 
 void handleErrorResponse(TPacket *packet)
 {
