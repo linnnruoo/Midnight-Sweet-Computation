@@ -18,6 +18,9 @@ volatile TDirection dir = STOP;
  * Vincent's configuration constants
  */
 
+#define ADJUSTMENT_PWM_FORWARD  40
+#define ADJUSTMENT_PWM_REVERSE  33
+
 // Number of ticks per revolution from the
 // wheel encoder.
 
@@ -32,10 +35,10 @@ volatile TDirection dir = STOP;
 
 // Motor control pins. You need to adjust these till
 // Vincent moves in the correct direction
-#define LF                  6   // Left forward pin
-#define LR                  5   // Left reverse pin
-#define RF                  11  // Right forward pin
-#define RR                  10  // Right reverse pin
+#define LF                  5   // Left forward pin
+#define LR                  6   // Left reverse pin
+#define RF                  10  // Right forward pin
+#define RR                  11  // Right reverse pin
 
 // PI, for calculating turn circumference
 //#define PI                  3.141592654
@@ -67,16 +70,12 @@ volatile unsigned long leftRevs;
 volatile unsigned long rightRevs;
 
 // Forward and backward distance traveled
-volatile unsigned long forwardDistL;
-volatile unsigned long forwardDistR;
-volatile unsigned long reverseDistL;
-volatile unsigned long reverseDistR;
+volatile unsigned long forwardDist;
+volatile unsigned long reverseDist;
 
 // Variables to keep track of whether we have moved a commanded distance
-unsigned long deltaDistR;
-unsigned long deltaDistL;
-unsigned long newDistL;
-unsigned long newDistR;
+unsigned long deltaDist;
+unsigned long newDist;
 
 // Variables to keep track of our turning angle
 unsigned long deltaTicks;
@@ -131,8 +130,8 @@ void sendStatus() {
   statusPacket.params[5] = rightForwardTicksTurn;
   statusPacket.params[6] = leftReverseTicksTurn;
   statusPacket.params[7] = rightReverseTicksTurn;
-  statusPacket.params[8] = forwardDistL;
-  statusPacket.params[9] = reverseDistL;
+  statusPacket.params[8] = forwardDist;
+  statusPacket.params[9] = reverseDist;
   sendResponse(&statusPacket);
 }
 
@@ -221,11 +220,11 @@ void leftISR() {
   switch (dir) {
     case FORWARD:
       leftForwardTicks++;
-      forwardDistL = (unsigned long)((float)leftForwardTicks/COUNTS_PER_REV * WHEEL_CIRC);
+      forwardDist = (unsigned long)((float)leftForwardTicks/COUNTS_PER_REV * WHEEL_CIRC);
       break;
     case BACKWARD:
       leftReverseTicks++;
-      reverseDistL = (unsigned long)((float)leftReverseTicks/COUNTS_PER_REV * WHEEL_CIRC);
+      reverseDist = (unsigned long)((float)leftReverseTicks/COUNTS_PER_REV * WHEEL_CIRC);
       break;
     case LEFT:
       leftReverseTicksTurn++;
@@ -245,11 +244,9 @@ void rightISR() {
   switch (dir) {
     case FORWARD:
       rightForwardTicks++;
-      forwardDistR = (unsigned long)((float)rightForwardTicks/COUNTS_PER_REV * WHEEL_CIRC);
       break;
     case BACKWARD:
       rightReverseTicks++;
-      reverseDistR = (unsigned long)((float)rightReverseTicks/COUNTS_PER_REV * WHEEL_CIRC);
       break;
     case LEFT:
       rightForwardTicksTurn++;
@@ -374,24 +371,18 @@ void forward(float dist, float speed) {
   
   int val = pwmVal(speed);
 
-  if (dist > 0) {
-    deltaDistL = dist;
-    deltaDistR = dist;
-  }
-  else {
-    deltaDistL = 99999999;
-    deltaDistR = 99999999;
-  }
-    
+  if (dist > 0)
+    deltaDist = dist;
+  else
+    deltaDist = 99999999;
 
-  newDistL = forwardDistL + deltaDistL;
-  newDistR = forwardDistR + deltaDistR;
+  newDist = forwardDist + deltaDist;
   
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LF, val);
-  analogWrite(RF, val);
+  analogWrite(RF, val-ADJUSTMENT_PWM_FORWARD);
   analogWrite(LR,0);
   analogWrite(RR, 0);
 }
@@ -406,23 +397,18 @@ void reverse(float dist, float speed) {
     
   int val = pwmVal(speed);
 
-  if (dist > 0) {
-    deltaDistL = dist;
-    deltaDistR = dist;
-  }
-  else {
-    deltaDistL = 99999999;
-    deltaDistR = 99999999;
-  }
+  if (dist > 0)
+    deltaDist = dist;
+  else
+    deltaDist = 99999999;
 
-  newDistL = reverseDistL + deltaDistL;
-  newDistR = reverseDistR + deltaDistR;
+  newDist = reverseDist + deltaDist;
     
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LR, val);
-  analogWrite(RR, val);
+  analogWrite(RR, val-ADJUSTMENT_PWM_REVERSE);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
 }
@@ -503,16 +489,6 @@ void stop() {
   analogWrite(RR, 0);
 }
 
-void leftStop() {
-  analogWrite(LF, 0);
-  analogWrite(LR, 0);
-}
-
-void rightStop() {
-  analogWrite(RF, 0);
-  analogWrite(RR, 0);
-}
-
 /*
  * Vincent's setup and run codes
  *
@@ -532,10 +508,8 @@ void clearCounters() {
   
   //leftRevs=0;
   //rightRevs=0;
-  forwardDistL=0;
-  forwardDistR=0;
-  reverseDistL=0;
-  reverseDistR=0;
+  //forwardDist=0;
+  //reverseDist=0;
 }
 
 // Clears one particular counter
@@ -662,36 +636,24 @@ void loop() {
       sendBadChecksum();
   }
 
-  if(deltaDistR > 0 || deltaDistL > 0) {
+  if(deltaDist > 0) {
     if(dir == FORWARD) {
-      if(forwardDistL >= newDistL && forwardDistL < forwardDistR) {
-        deltaDistL = 0;
-        newDistL = 0;
-        leftStop();
-      }
-      if (forwardDistR >= newDistR) {
-        deltaDistR = 0;
-        newDistR = 0;
-        rightStop();
+      if(forwardDist >= newDist) {
+        deltaDist = 0;
+        newDist = 0;
+        stop();
       }
     }
     else if(dir == BACKWARD) {
-      if(reverseDistL >= newDistL) {
-        deltaDistL = 0;
-        newDistL = 0;
-        leftStop();
-      }
-      if (reverseDistR >= newDistR) {
-        deltaDistR = 0;
-        newDistR = 0;
-        rightStop();
+      if(reverseDist >= newDist) {
+        deltaDist = 0;
+        newDist = 0;
+        stop();
       }
     }
     else if(dir == STOP) {
-      deltaDistR = 0;
-      deltaDistL = 0;
-      newDistL = 0;
-      newDistR = 0;
+      deltaDist = 0;
+      newDist = 0;
       stop();
     }
   }
