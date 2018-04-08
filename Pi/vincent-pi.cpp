@@ -8,6 +8,17 @@
 #include "serialize.h"
 #include "constants.h"
 
+///////////////////////////////
+#include <iostream>
+#include <stack>
+using namespace std;
+
+stack<TPacket> backtrackstack;
+stack<char> movementCommand;
+
+int startBacktrack=0;
+//////////////////////////////
+
 #define PORT_NAME			"/dev/ttyACM0"
 #define BAUD_RATE			B9600
 
@@ -44,10 +55,14 @@ void handleStatus(TPacket *packet)
 	printf("Right Reverse Ticks Turns:\t%d\n", packet->params[7]);
 	printf("Forward Distance:\t\t%d\n", packet->params[8]);
 	printf("Reverse Distance:\t\t%d\n", packet->params[9]);
-	printf("Ultrasonic Sensor:\t\t%d\n", packet->params[10]);
+
+	////////////////////////////////////////////////////////
+    printf("Ultrasonic Sensor:\t\t%d\n", packet->params[10]);
     printf("LeftIR reading:\t\t\t%d\n", packet->params[11]);
     printf("RightIR reading:\t\t%d\n", packet->params[12]);
-	printf("\n---------------------------------------\n\n");
+    ////////////////////////////////////////////////////////
+
+    printf("\n---------------------------------------\n\n");
 }
 
 void handleResponse(TPacket *packet)
@@ -67,7 +82,6 @@ void handleResponse(TPacket *packet)
 			printf("Arduino is confused\n");
 	}
 }
-
 
 void handleErrorResponse(TPacket *packet)
 {
@@ -170,10 +184,13 @@ void flushInput()
 
 void getParams(TPacket *commandPacket)
 {
-	printf("Enter distance/angle in cm/degrees (e.g. 50) and power in %% (e.g. 75) separated by space.\n");
-	printf("E.g. 50 75 means go at 50 cm at 75%% power for forward/backward, or 50 degrees left or right turn at 75%%  power\n");
-	scanf("%d %d", &commandPacket->params[0], &commandPacket->params[1]);
-	flushInput();
+	//int first, second;
+	if(startBacktrack==0){
+		printf("Enter distance/angle in cm/degrees (e.g. 50) and power in %% (e.g. 75) separated by space.\n");
+		printf("E.g. 50 75 means go at 50 cm at 75%% power for forward/backward, or 50 degrees left or right turn at 75%%  power\n");
+		scanf("%d %d", &commandPacket->params[0], &commandPacket->params[1]);
+		flushInput();
+	}
 }
 
 void sendCommand(char command)
@@ -181,13 +198,14 @@ void sendCommand(char command)
 	TPacket commandPacket;
 
 	commandPacket.packetType = PACKET_TYPE_COMMAND;
-
+	
 	switch(command)
 	{
 		case 'f':
 		case 'F':
 			getParams(&commandPacket);
 			commandPacket.command = COMMAND_FORWARD;
+			//cout << "what is this in f:  "<<commandPacket.command<<endl; //checking
 			sendPacket(&commandPacket);
 			break;
 
@@ -195,6 +213,7 @@ void sendCommand(char command)
 		case 'B':
 			getParams(&commandPacket);
 			commandPacket.command = COMMAND_REVERSE;
+			//cout << "what is this in b:  "<<commandPacket.command<<endl; //che
 			sendPacket(&commandPacket);
 			break;
 
@@ -236,10 +255,86 @@ void sendCommand(char command)
 			exitFlag=1;
 			break;
 
+		//////////////////
+		case 'z':
+		case 'Z':
+			startBacktrack=1;
+			break;
+		/////////////////
+
 		default:
 			printf("Bad command\n");
 
 	}
+
+	///////////////////////////////////////////////
+	if(startBacktrack==0 && (command!='z' || command!='Z' || command!='C' || command!='c' ||
+		command!='g' || command!='G' || command!='Q' || command!='q')) {
+		
+		movementCommand.push(command);
+		cout << "this is pushed into movement" << command <<endl; //for checking
+
+		backtrackstack.push(commandPacket);
+		cout << "pushed into backtrackstack"<<endl; //for checking
+
+	}
+	//////////////////////////////////////////////
+
+}
+
+void sendCommand2(char command)
+{
+	TPacket temp = backtrackstack.top();
+	
+
+	switch(command)
+	{
+		case 'f':
+		case 'F':
+			getParams(&temp);
+			//cout << "before "<<temp.command<<endl;
+			temp.command = COMMAND_REVERSE;
+		//	cout << "after "<<temp.command<<endl;
+		//	cout << "the param[0] "<< temp.params[0] << endl;
+		//	cout << "the param[1] "<< temp.params[1] << endl;
+			sendPacket(&temp);
+			break;
+
+		case 'b':
+		case 'B':
+			getParams(&temp);
+			temp.command = COMMAND_FORWARD;
+			sendPacket(&temp);
+			break;
+
+		case 'l':
+		case 'L':
+			getParams(&temp);
+			temp.command = COMMAND_TURN_RIGHT;
+			sendPacket(&temp);
+			break;
+
+		case 'r':
+		case 'R':
+			getParams(&temp);
+			temp.command = COMMAND_TURN_LEFT;
+			sendPacket(&temp);
+			break;
+
+		case 's':
+		case 'S':
+			temp.command = COMMAND_STOP;
+			sendPacket(&temp);
+			break;
+
+		
+
+		default:
+			printf("Bad command\n");
+
+	}
+
+	
 }
 
 int main()
@@ -266,14 +361,35 @@ int main()
 	while(!exitFlag)
 	{
 		char ch;
-		printf("Command (f=forward, b=reverse, l=turn left, r=turn right, s=stop, c=clear stats, g=get stats q=exit)\n");
+		printf("Command (f=forward, b=reverse, l=turn left, r=turn right, s=stop, c=clear stats, g=get stats, q=exit, z=backtracking)\n");
 		scanf("%c", &ch);
 
 		// Purge extraneous characters from input stream
 		flushInput();
 
 		sendCommand(ch);
+		
+		///////////////////////
+		
+		if(startBacktrack==1) {
+			cout <<"backtrack starts"<<endl; //for checking
+			break;
+		}
+		///////////////////////
+
+
 	}
+
+	////////////////////////
+	if(startBacktrack==1) {
+		while(!backtrackstack.empty()){
+			sendCommand2(movementCommand.top());
+			cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
+			movementCommand.pop();
+			backtrackstack.pop();
+		}
+	}
+	////////////////////////
 
 	printf("Closing connection to Arduino.\n");
 	endSerial();
