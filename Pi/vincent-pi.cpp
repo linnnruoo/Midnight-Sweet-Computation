@@ -133,7 +133,7 @@ void handlePacket(TPacket *packet)
 		case PACKET_TYPE_MESSAGE:
 				handleMessage(packet);
 			break;
-	}
+	} 
 }
 
 void sendPacket(TPacket *packet)
@@ -181,6 +181,8 @@ void flushInput()
 
 	while((c = getchar()) != '\n' && c != EOF);
 }
+
+
 
 void getParams(TPacket *commandPacket)
 {
@@ -268,8 +270,8 @@ void sendCommand(char command)
 	}
 
 	///////////////////////////////////////////////
-	if(startBacktrack==0 && (command!='z' || command!='Z' || command!='C' || command!='c' ||
-		command!='g' || command!='G' || command!='Q' || command!='q')) {
+	if(startBacktrack==0 && !(command=='z' || command=='Z' || command=='C' || command=='c' ||
+		command=='g' || command=='G' || command=='Q' || command=='q')) {
 		
 		movementCommand.push(command);
 		cout << "this is pushed into movement" << command <<endl; //for checking
@@ -373,6 +375,20 @@ int main()
 		
 		if(startBacktrack==1) {
 			cout <<"backtrack starts"<<endl; //for checking
+			
+			while(!backtrackstack.empty()){
+				
+				sendCommand2(movementCommand.top());
+				cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
+				movementCommand.pop();
+				backtrackstack.pop();
+
+			//	flushInput();
+			//	flushInput2();
+				sleep(2);
+			//	cin.get();
+			}
+
 			break;
 		}
 		///////////////////////
@@ -381,15 +397,17 @@ int main()
 	}
 
 	////////////////////////
-	if(startBacktrack==1) {
+/*	if(startBacktrack==1) {
 		while(!backtrackstack.empty()){
+			flushInput();
+			
 			sendCommand2(movementCommand.top());
 			cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
 			movementCommand.pop();
 			backtrackstack.pop();
 		}
 	}
-	////////////////////////
+*/	////////////////////////
 
 	printf("Closing connection to Arduino.\n");
 	endSerial();
