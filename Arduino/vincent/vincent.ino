@@ -24,7 +24,6 @@ volatile unsigned long rightIRreading;
 volatile unsigned long leftIRreading;
 /////////////////////
 
-
 typedef enum {
   STOP=0,
   FORWARD=1,
@@ -41,8 +40,9 @@ volatile TDirection dir = STOP;
 
 // Number of ticks per revolution from the
 // wheel encoder.
-
-#define COUNTS_PER_REV      192
+#define ADJUSTMENT_PWM_FWD      20
+#define ADJUSTMENT_PWM_REV      32
+#define COUNTS_PER_REV          192
 //#define COUNTS_PER_REV_RIGHT      266
 
 
@@ -149,14 +149,15 @@ void sendStatus() {
   statusPacket.params[5] = rightForwardTicksTurn;
   statusPacket.params[6] = leftReverseTicksTurn;
   statusPacket.params[7] = rightReverseTicksTurn;
-  statusPacket.params[8] = forwardDist;   
+  statusPacket.params[8] = forwardDist;
   statusPacket.params[9] = reverseDist;
 
-  /////all the werid stuff/////
+  /////all the sensors' readings/////
   statusPacket.params[10] = ultraInCm; //ultrasound sensor
   statusPacket.params[11] = leftIRreading;
   statusPacket.params[12] = rightIRreading;
 
+  
   sendResponse(&statusPacket);
 }
 
@@ -414,7 +415,7 @@ void forward(float dist, float speed) {
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LF, val);
-  analogWrite(RF, val);
+  analogWrite(RF, val - ADJUSTMENT_PWM_FWD);
   analogWrite(LR,0);
   analogWrite(RR, 0);
 }
@@ -440,7 +441,7 @@ void reverse(float dist, float speed) {
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LR, val);
-  analogWrite(RR, val);
+  analogWrite(RR, val - ADJUSTMENT_PWM_REV);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
 }
@@ -537,7 +538,11 @@ void clearCounters() {
   leftReverseTicksTurn=0;
   rightForwardTicksTurn=0;
   rightReverseTicksTurn=0;
- 
+  
+  //leftRevs=0;
+  //rightRevs=0;
+  forwardDist=0;
+  reverseDist=0;
 }
 
 // Clears one particular counter
@@ -613,7 +618,8 @@ void waitForHello() {
 }
 
 void setup() {
-  
+  // put your setup code here, to run once:
+
   //Compute the diagonal
   vincentDiagonal = sqrt((VINCENT_LENGTH * VINCENT_LENGTH) + (VINCENT_BREADTH * VINCENT_BREADTH));
   vincentCirc = PI * vincentDiagonal;
@@ -624,11 +630,12 @@ void setup() {
   startSerial();
   setupMotors();
   startMotors();
-   
+
   pinMode(trigPinU, OUTPUT);
   pinMode(echoPinU, INPUT);
   pinMode(leftIR, INPUT);
   pinMode(rightIR, INPUT);
+
   
   enablePullups();
   initializeState();
@@ -657,14 +664,16 @@ void handlePacket(TPacket *packet) {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  
-  /////// sensors///////////////////
+
+   /////// sensors///////////////////
   digitalWrite(trigPinU, LOW);
+  delayMicroseconds(5);
   digitalWrite(trigPinU, HIGH);
+  delayMicroseconds(10);
   digitalWrite(trigPinU, LOW);
 
   pinMode(echoPinU, INPUT);
-  duration = pulseIn(echoPinU, HIGH);
+  duration = pulseIn(echoPinU, HIGH, 4000);
   ultraInCm = (duration/2) / 29.1;
 
 
@@ -673,7 +682,7 @@ void loop() {
   leftIRreading = digitalRead(leftIR);
 
   /////////////////////////////////
-  
+
   
   TPacket recvPacket; // This holds commands from the Pi
     
