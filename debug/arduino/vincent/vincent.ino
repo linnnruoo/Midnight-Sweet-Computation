@@ -1,8 +1,48 @@
-#include <serialize.h>
 #include <math.h>
+#include <serialize.h>
+#include <buffer.h>
 
 #include "packet.h"
 #include "constants.h"
+
+/*
+
+
+CHECK
+AND
+COMBINE ALL THE DDRX (B,C,D)
+
+TYPE "bare metal start" IN CTRL + F FOR EASY ACCESS TO ALL THE ADDED BARE METAL CODES
+
+UPDATE THE VINCENT LENGTH AND BREADTH ONCE FINAL CONFIGURATION OF VINCENT IS DONE
+
+TO SET 1, use |=
+TO SET 0, use &=
+ 
+*/
+// Data Type for Serial Communication
+TBuffer _recvBuffer, _xmitBuffer;
+
+
+//////////////////////
+//Ultrasonic sensors
+//trigPin: grey jumper
+//echoPin: white jumpemr 
+//////////////////////
+int trigPinU = 9;
+int echoPinU = 8;
+int duration;
+volatile unsigned long ultraInCm;
+//////////////////////
+//////////////////////
+//IR sensors
+//////////////////////
+#define leftIR A4
+#define rightIR A5
+
+volatile unsigned long rightIRreading;
+volatile unsigned long leftIRreading;
+/////////////////////
 
 typedef enum {
   STOP=0,
@@ -18,13 +58,12 @@ volatile TDirection dir = STOP;
  * Vincent's configuration constants
  */
 
-#define ADJUSTMENT_PWM_FORWARD  40
-#define ADJUSTMENT_PWM_REVERSE  33
-
 // Number of ticks per revolution from the
 // wheel encoder.
-
-#define COUNTS_PER_REV      192
+#define ADJUSTMENT_PWM_FWD      20
+#define ADJUSTMENT_PWM_REV      32
+#define COUNTS_PER_REV          192
+//#define COUNTS_PER_REV_RIGHT      266
 
 
 // Wheel circumference in cm.
@@ -35,17 +74,17 @@ volatile TDirection dir = STOP;
 
 // Motor control pins. You need to adjust these till
 // Vincent moves in the correct direction
-#define LF                  5   // Left forward pin
-#define LR                  6   // Left reverse pin
-#define RF                  10  // Right forward pin
-#define RR                  11  // Right reverse pin
+#define LF                  6   // Left forward pin
+#define LR                  5   // Left reverse pin
+#define RF                  11  // Right forward pin
+#define RR                  10  // Right reverse pin
 
 // PI, for calculating turn circumference
 //#define PI                  3.141592654
 
 // Vincent's length and breadth in cm
-#define VINCENT_LENGTH      17.20
-#define VINCENT_BREADTH     10.90
+#define VINCENT_LENGTH      17.20    //17.5 ++  (updated 09/04)
+#define VINCENT_BREADTH     10.90    //12.7     (updated 09/04)
 
 /*
  *    Vincent's State Variables
@@ -132,6 +171,13 @@ void sendStatus() {
   statusPacket.params[7] = rightReverseTicksTurn;
   statusPacket.params[8] = forwardDist;
   statusPacket.params[9] = reverseDist;
+
+  /////all the sensors' readings/////
+  statusPacket.params[10] = ultraInCm; //ultrasound sensor
+  statusPacket.params[11] = leftIRreading;
+  statusPacket.params[12] = rightIRreading;
+
+  
   sendResponse(&statusPacket);
 }
 
@@ -211,7 +257,7 @@ void enablePullups() {
   // Use bare-metal to enable the pull-up resistors on pins
   // 2 and 3. These are pins PD2 and PD3 respectively.
   // We set bits 2 and 3 in DDRD to 0 to make them inputs.
-  DDRD &= 0b11110011; // Set port 2 and 3 as output
+  DDRD &= 0b11110011; // Set port 2 and 3 as input
   PORTD |= 0b00001100;    // Set port 2 and 3 as HIGH output  
 }
 
@@ -233,6 +279,8 @@ void leftISR() {
       leftForwardTicksTurn++;
       break;
   }
+
+  //Serial.println(leftForwardTicks);
   
   //leftTicks++;
   //leftRevs = leftTicks / COUNTS_PER_REV;
@@ -256,6 +304,7 @@ void rightISR() {
       break;
   }
 
+  //Serial.println(rightForwardTicks);
   //rightTicks++;
   //rightRevs = rightTicks / COUNTS_PER_REV
   //Serial.print("RIGHT: ");
@@ -288,12 +337,25 @@ ISR(INT1_vect) {
  * Setup and start codes for serial communications
  *
  */
+void setBaud(unsigned long baudRate) {
+  unsigned int b;
+  b = (unsigned int) round(F_CPU / (16.0 * baudRate)) - 1;
+  UBRR0H = (unsigned char) (b>>8);
+  UBRR0L = (unsigned char) b;
+}
+
 // Set up the serial connection. For now we are using
 // Arduino Wiring, you will replace this later
 // with bare-metal code.
 void setupSerial() {
   // To replace later with bare-metal.
-  Serial.begin(9600);
+  //Serial.begin(9600);
+
+  //USART to work at 9600 in 8N1 format
+  UCSR0C = 0b00000110; // Set USART to Asynchronous mode, N partity mode, 1 stop bit and 8-bit character size
+  setBaud(9600);
+  UCSR0A = 0b00000000;
+  
 }
 
 // Start the serial connection. For now we are using
@@ -302,7 +364,29 @@ void setupSerial() {
 
 void startSerial() {
   // Empty for now. To be replaced with bare-metal code
-  // later on.  
+  // later on. 
+  
+  // Start the serial port
+  // Enable RXC and UDRIE0
+  // Enable USART receiver and transmitter
+  UCSR0B = 0b10111000; 
+}
+
+ISR(USART_RX_vect) {
+  // Write received data
+  unsigned char data = UDR0;
+
+  writeBuffer(&_recvBuffer, data);
+}
+
+ISR(USART_UDRE_vect) {
+  unsigned char data;
+  TBufferResult result = readBuffer(&_xmitBuffer, &data);
+
+  if(result == BUFFER_OK)
+    UDR0 = data;
+  else if (result == BUFFER_EMPTY)
+    UCSR0B &= 0b11011111;
 }
 
 // Read the serial port. Returns the read character in
@@ -310,10 +394,25 @@ void startSerial() {
 // This will be replaced later with bare-metal code.
 
 int readSerial(char *buffer) {
+  /*
   int count=0;
-    
+
   while(Serial.available())
     buffer[count++] = Serial.read();
+
+  return count;
+  */
+
+  int count = 0;
+
+  TBufferResult result;
+
+  do {
+    result = readBuffer(&_recvBuffer, &buffer[count]);
+
+    if (result == BUFFER_OK)
+      count++;
+  } while (result == BUFFER_OK);
 
   return count;
 }
@@ -322,7 +421,18 @@ int readSerial(char *buffer) {
 // bare-metal code
 
 void writeSerial(const char *buffer, int len) {
-  Serial.write(buffer, len);
+  //Serial.write(buffer, len);
+
+  TBufferResult result = BUFFER_OK;
+
+  int i;
+
+  for (int i=1; i<len && result == BUFFER_OK; i++)
+    result = writeBuffer(&_xmitBuffer, buffer[i]);
+
+  UDR0 = buffer[0];
+
+  UCSR0B |= 0b00100000;
 }
 
 /*
@@ -336,11 +446,20 @@ void writeSerial(const char *buffer, int len) {
 void setupMotors() {
   
     /* Our motor set up is:
-     *    A1IN - Pin 5, PD5, OC0B
-     *    A2IN - Pin 6, PD6, OC0A
-     *    B1IN - Pin 10, PB2, OC1B
-     *    B2In - pIN 11, PB3, OC2A
+     *    A1IN - Pin 5, PD5, OC0B (Left reverse pin, LR)
+     *    A2IN - Pin 6, PD6, OC0A (Left foward pin, LF)
+     *    B1IN - Pin 10, PB2, OC1B (Right reverse pin, RR)
+     *    B2In - pIN 11, PB3, OC2A (Right forward pin, RF)
      */
+  
+  DDRD |= 01100000; // PORT D, PD5 LR & 6 LF, OUTPUT (1)     
+  DDRB |= 00001100; // PORT B, PB2 RR & 3 RF, OUTPUT (1)
+
+//     pinMode(LF, OUTPUT);
+//     pinMode(LR, OUTPUT);
+//     pinMode(RF, OUTPUT);
+//     pinMode(RR, OUTPUT);
+
 }
 
 // Start the PWM for Vincent's motors.
@@ -349,6 +468,55 @@ void setupMotors() {
 void startMotors() {
   
 }
+
+void setupSensors() {
+  /* CHECK EVERYTHING PLS
+   * int trigPinU = 9;    // Arduino Pin 9 = PB1
+   * int echoPinU = 8;    // Arduino Pin 8 = PB0
+   * #define leftIR A4    // Arduino Analog Pin 4 (ADC4) = PC4    //check from Week 4 Studio, GPIO Programming Slides
+   * #define rightIR A5   // Arduino Analog Pin 5 (ADC5) = PC5
+   */
+  
+  DDRB |= 00000010;   //trigPinU (PB1) set to OUTPUT (1), 
+  DDRB &= 11111110;   //echoPinU (PB0) set to INPUT (0)
+  DDRC &= 11001111;   //PC4 and PC5 both set to INPUT (0)
+
+  /*
+  pinMode(trigPinU, OUTPUT);
+  pinMode(echoPinU, INPUT);
+  pinMode(leftIR, INPUT);
+  pinMode(rightIR, INPUT);
+  */
+}
+
+void startSensors() {
+  // Ultrasound
+  //digitalWrite(trigPinU, LOW);
+  PORTB &= 11111101;    //digitalWrite(trigPinU, LOW),  trigPinU = PB1, set to 0
+  delayMicroseconds(5);
+  
+  //digitalWrite(trigPinU, HIGH);
+  PORTB |= 00000010;    //digitalWrite(trigPinU, HIGH), trigPinU = PB1, set to 1
+  delayMicroseconds(10);
+  
+  PORTB &= 11111101;    //digitalWrite(trigPinU, LOW),  trigPinU = PB1, set to 0
+  //digitalWrite(trigPinU, LOW);
+
+  pinMode(echoPinU, INPUT);  //why declare pinMode for echoPinU twice?, test with and without this line
+  
+  duration = pulseIn(echoPinU, HIGH, 4000);
+  ultraInCm = (duration/2) / 29.1;
+
+
+  // IR Sensors
+  //its either CLEAR or TOO NEAR
+  //rightIRreading = digitalRead(rightIR);
+  rightIRreading = PINC & 0b00010000;  //rightIRreading = digitalRead(rightIR), Arduino Analog Pin 4 (ADC4) = PC4
+
+  //leftIRreading = digitalRead(leftIR);
+  leftIRreading =  PINC & 0b00100000;  //leftIRreading = digitalRead(leftIR), Arduino Analog Pin 5 (ADC5) = PC5
+}
+  
 
 // Convert percentages to PWM values
 int pwmVal(float speed) {
@@ -382,7 +550,7 @@ void forward(float dist, float speed) {
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LF, val);
-  analogWrite(RF, val-ADJUSTMENT_PWM_FORWARD);
+  analogWrite(RF, val - ADJUSTMENT_PWM_FWD);
   analogWrite(LR,0);
   analogWrite(RR, 0);
 }
@@ -408,7 +576,7 @@ void reverse(float dist, float speed) {
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LR, val);
-  analogWrite(RR, val-ADJUSTMENT_PWM_REVERSE);
+  analogWrite(RR, val - ADJUSTMENT_PWM_REV);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
 }
@@ -508,8 +676,8 @@ void clearCounters() {
   
   //leftRevs=0;
   //rightRevs=0;
-  //forwardDist=0;
-  //reverseDist=0;
+  forwardDist=0;
+  reverseDist=0;
 }
 
 // Clears one particular counter
@@ -548,7 +716,8 @@ void handleCommand(TPacket *command) {
       sendStatus();
       break;
     case COMMAND_CLEAR_STATS:
-      clearOneCounter(command->params[0]);
+      //clearOneCounter(command->params[0]);
+      clearCounters();
       sendOK();
       break;
     default:
@@ -596,6 +765,7 @@ void setup() {
   startSerial();
   setupMotors();
   startMotors();
+  setupSensors();
   enablePullups();
   initializeState();
   sei();
@@ -623,6 +793,9 @@ void handlePacket(TPacket *packet) {
 
 void loop() {
   // put your main code here, to run repeatedly:
+
+  startSensors(); // Initialize ultrasound and IR sensors
+  
   TPacket recvPacket; // This holds commands from the Pi
     
   TResult result = readPacket(&recvPacket);
