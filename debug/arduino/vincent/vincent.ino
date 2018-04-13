@@ -492,6 +492,7 @@ void startMotors() {
   TCCR1B = 0b00000011;
 }
 
+
 void setupSensors() {
   /* CHECK EVERYTHING PLS
    * int trigPinU = 11;    // Arduino Pin 11 = PB3
@@ -500,44 +501,40 @@ void setupSensors() {
    * #define rightIR A5   // Arduino Analog Pin 5 (ADC5) = PC5
    */
   
-  DDRB |= 00001000;   //trigPinU (PB3) set to OUTPUT (1), 
-  DDRB &= 11111110;   //echoPinU (PB0) set to INPUT (0)
+  //DDRB |= 00001000;   //trigPinU (PB3) set to OUTPUT (1), 
+  //DDRB &= 11111110;   //echoPinU (PB0) set to INPUT (0)
   DDRC &= 11001111;   //PC4 and PC5 both set to INPUT (0)
 
-  /*
+  
   pinMode(trigPinU, OUTPUT);
   pinMode(echoPinU, INPUT);
-  pinMode(leftIR, INPUT);
-  pinMode(rightIR, INPUT);
-  */
+  //pinMode(leftIR, INPUT);
+  //pinMode(rightIR, INPUT);
+  
 }
 
 void startSensors() {
   // Ultrasound
-  //digitalWrite(trigPinU, LOW);
-  PORTB &= 11110111;    //digitalWrite(trigPinU, LOW),  trigPinU = PB3, set to 0
+  digitalWrite(trigPinU, LOW);
+  //PORTB &= 11110111;    //digitalWrite(trigPinU, LOW),  trigPinU = PB3, set to 0
   delayMicroseconds(5);
   
-  //digitalWrite(trigPinU, HIGH);
-  PORTB |= 00001000;    //digitalWrite(trigPinU, HIGH), trigPinU = PB3, set to 1
+  digitalWrite(trigPinU, HIGH);
+  //PORTB |= 00001000;    //digitalWrite(trigPinU, HIGH), trigPinU = PB3, set to 1
   delayMicroseconds(10);
-  
-  PORTB &= 11110111;    //digitalWrite(trigPinU, LOW),  trigPinU = PB3, set to 0
-  //digitalWrite(trigPinU, LOW);
-
-  pinMode(echoPinU, INPUT);  //why declare pinMode for echoPinU twice?, test with and without this line
-  
-  duration = pulseIn(echoPinU, HIGH, 4000);
-  ultraInCm = (duration/2) / 29.1;
+    
+  duration = pulseIn(echoPinU, HIGH);
+  unsigned long temp = (duration/2) / 29.1;
+  ultraInCm = (temp > 300 || temp < 3) ? 0 : temp;
 
 
-  // IR Sensors
+  //IR Sensors
   //its either CLEAR or TOO NEAR
   //rightIRreading = digitalRead(rightIR);
-  rightIRreading = PINC & 0b00010000;  //rightIRreading = digitalRead(rightIR), Arduino Analog Pin 4 (ADC4) = PC4
+  rightIRreading = (PINC & 0b00010000) ? 1 : 0;  //rightIRreading = digitalRead(rightIR), Arduino Analog Pin 4 (ADC4) = PC4
 
   //leftIRreading = digitalRead(leftIR);
-  leftIRreading =  PINC & 0b00100000;  //leftIRreading = digitalRead(leftIR), Arduino Analog Pin 5 (ADC5) = PC5
+  leftIRreading =  (PINC & 0b00100000) ? 1 : 0;  //leftIRreading = digitalRead(leftIR), Arduino Analog Pin 5 (ADC5) = PC5
 }
   
 
@@ -871,7 +868,7 @@ void setup() {
   startSerial();
   setupMotors();
   startMotors();
-  //setupSensors();
+  setupSensors();
   enablePullups();
   initializeState();
   sei();
@@ -900,7 +897,7 @@ void handlePacket(TPacket *packet) {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  //startSensors(); // Initialize ultrasound and IR sensors
+  startSensors(); // Initialize ultrasound and IR sensors
   
   TPacket recvPacket; // This holds commands from the Pi
     
