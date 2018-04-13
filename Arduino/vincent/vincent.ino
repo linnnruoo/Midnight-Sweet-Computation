@@ -9,11 +9,11 @@
 //trigPin: grey jumper
 //echoPin: white jumper 
 //////////////////////
-int trigPinU = 9;
+int trigPinU = 11;
 int echoPinU = 8;
 int duration;
 volatile unsigned long ultraInCm;
-//////////////////////
+
 //////////////////////
 //IR sensors
 //////////////////////
@@ -22,7 +22,9 @@ volatile unsigned long ultraInCm;
 
 volatile unsigned long rightIRreading;
 volatile unsigned long leftIRreading;
-/////////////////////
+
+#define LEDpin 13 //LED
+
 
 typedef enum {
   STOP=0,
@@ -56,7 +58,7 @@ volatile TDirection dir = STOP;
 // Vincent moves in the correct direction
 #define LF                  6   // Left forward pin
 #define LR                  5   // Left reverse pin
-#define RF                  11  // Right forward pin
+#define RF                  9  // Right forward pin
 #define RR                  10  // Right reverse pin
 
 // PI, for calculating turn circumference
@@ -215,6 +217,17 @@ void sendOK() {
   okPacket.command = RESP_OK;
   sendResponse(&okPacket);
 }
+
+////////////////////////////////////////////////////
+void sendDone(){
+  TPacket donePacket;
+  donePacket.packetType = PACKET_TYPE_RESPONSE;
+  donePacket.command = DONE_OK;
+  sendResponse (&donePacket);
+}
+
+
+////////////////////////////////////////////////////
 
 void sendResponse(TPacket *packet) {
   // Takes a packet, serializes it then sends it out
@@ -522,6 +535,24 @@ void stop() {
   analogWrite(RR, 0);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////
+//stop vincent and play the sound
+void mark_location() {
+  dir = STOP;
+  analogWrite(LF, 0);
+  analogWrite(LR, 0);
+  analogWrite(RF, 0);
+  analogWrite(RR, 0);
+  
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(500);
+  digitalWrite(LED_BUILTIN, LOW);
+ // delay(500);  
+  //to be implemented
+  
+}
+///////////////////////////////////////////////////////////////////////////////////////
+
 /*
  * Vincent's setup and run codes
  *
@@ -561,32 +592,55 @@ void handleCommand(TPacket *command) {
     case COMMAND_FORWARD:
       sendOK();
       forward((float) command->params[0], (float) command->params[1]);
+     // sendDone(); //edited
+      
       break;
     case COMMAND_REVERSE:
       sendOK();
       reverse((float) command->params[0], (float) command->params[1]);
+      //sendDone(); //edited
       break;
+      
     case COMMAND_TURN_LEFT:
       sendOK();
       left((float) command->params[0], (float) command->params[1]);
+      //sendDone(); //edited
       break;
+      
     case COMMAND_TURN_RIGHT:
       sendOK();
       right((float) command->params[0], (float) command->params[1]);
+     // sendDone(); //edited
       break;
+      
     case COMMAND_STOP:
       stop();
+      sendDone(); //edited
       break;
+      
     case COMMAND_GET_STATS:
       sendStatus();
+      sendDone(); //edited
       break;
+      
     case COMMAND_CLEAR_STATS:
       //clearOneCounter(command->params[0]);
-      clearCounters();
       sendOK();
+      clearCounters();
+      sendDone(); //edited
       break;
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    case COMMAND_MARK:
+      sendOK();
+      mark_location(); //play the buzzer in this function //to be implemented
+      sendDone(); //edited
+      break;
+    //////////////////////////////////////////////////////////////////////////////////////
+    
     default:
       sendBadCommand();
+      sendDone(); //edited
     }
 }
 
@@ -636,6 +690,7 @@ void setup() {
   pinMode(leftIR, INPUT);
   pinMode(rightIR, INPUT);
 
+  pinMode(LEDpin, OUTPUT);
   
   enablePullups();
   initializeState();
@@ -661,6 +716,7 @@ void handlePacket(TPacket *packet) {
       break;
   }
 }
+
 
 void loop() {
   // put your main code here, to run repeatedly:
@@ -703,6 +759,7 @@ void loop() {
         deltaDist = 0;
         newDist = 0;
         stop();
+        sendDone();
       }
     }
     else if(dir == BACKWARD) {
@@ -710,12 +767,14 @@ void loop() {
         deltaDist = 0;
         newDist = 0;
         stop();
+        sendDone();
       }
     }
     else if(dir == STOP) {
       deltaDist = 0;
       newDist = 0;
       stop();
+      sendDone();
     }
   }
 
@@ -725,6 +784,7 @@ void loop() {
         deltaTicks = 0;
         targetTicks = 0;
         stop(); 
+        sendDone();
       }
     }
     else if (dir == RIGHT) {
@@ -732,12 +792,14 @@ void loop() {
         deltaTicks = 0;
         targetTicks = 0;
         stop();
+        sendDone();
       }
     }
     else if(dir == STOP) {
       deltaTicks = 0;
       targetTicks = 0;
       stop();
+      sendDone();
     }
   }
 }

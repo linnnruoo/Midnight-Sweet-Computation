@@ -22,7 +22,8 @@ int startBacktrack=0;
 #define PORT_NAME			"/dev/ttyACM0"
 #define BAUD_RATE			B9600
 
-int exitFlag=0;
+int exitFlag=0; //to exit
+int doneFlag = 0; //to check if the acknoelwdgement is received
 sem_t _xmitSema;
 
 void handleError(TResult error)
@@ -78,8 +79,15 @@ void handleResponse(TPacket *packet)
 			handleStatus(packet);
 		break;
 
+		/////////////////////////////////////
+		case DONE_OK:
+			printf("FINALLY DONE\n");
+			doneFlag = 1;
+		break;
+		////////////////////////////////////
+
 		default:
-			printf("Arduino is confused\n");
+			printf("Arduino is confused\n"); //we are oso confused
 	}
 }
 
@@ -200,6 +208,8 @@ void sendCommand(char command)
 	TPacket commandPacket;
 
 	commandPacket.packetType = PACKET_TYPE_COMMAND;
+
+	doneFlag = 0;
 	
 	switch(command)
 	{
@@ -257,30 +267,41 @@ void sendCommand(char command)
 			exitFlag=1;
 			break;
 
-		//////////////////
+		////////////////////////////
 		case 'z':
 		case 'Z':
 			startBacktrack=1;
 			break;
-		/////////////////
+
+		case 'm':
+		case 'M':
+			commandPacket.command = COMMAND_MARK;
+			cout << "This location is marked" <<endl;
+			break;
+
+		///////////////////////////
 
 		default:
 			printf("Bad command\n");
 
 	}
 
-	///////////////////////////////////////////////
+	//sleep until ack falg == 1
+	while(doneFlag==0 && !(command=='z' || command=='Z' || command=='C' || command=='c' ||
+		command=='g' || command=='G' || command=='Q' || command=='q' || command=='m' || command=='M')) {};
+
+	///////////////////////////////////////////////////////////////
 	if(startBacktrack==0 && !(command=='z' || command=='Z' || command=='C' || command=='c' ||
 		command=='g' || command=='G' || command=='Q' || command=='q')) {
 		
 		movementCommand.push(command);
-		cout << "this is pushed into movement" << command <<endl; //for checking
+		cout << "this is pushed into movement stack" << command <<endl; //for checking
 
 		backtrackstack.push(commandPacket);
-		cout << "pushed into backtrackstack"<<endl; //for checking
+		cout << "this is pushed into backtrackstack"<<endl; //for checking
 
 	}
-	//////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////
 
 }
 
@@ -288,6 +309,7 @@ void sendCommand2(char command)
 {
 	TPacket temp = backtrackstack.top();
 	
+	doneFlag = 0;
 
 	switch(command)
 	{
@@ -329,13 +351,18 @@ void sendCommand2(char command)
 			sendPacket(&temp);
 			break;
 
-		
+		case 'm':
+		case 'M':
+			temp.command = COMMAND_MARK;
+			sendPacket(&temp); //this packet will be sent to arduino to produce a sound
+			break;
 
 		default:
 			printf("Bad command\n");
 
 	}
 
+	while(doneFlag==0) {};
 	
 }
 
@@ -344,15 +371,16 @@ int main()
 	// Connect to the Arduino
 	startSerial(PORT_NAME, BAUD_RATE, 8, 'N', 1, 5);
 
-	// Sleep for two seconds
+	// Sleep for 2 seconds
 	printf("WAITING TWO SECONDS FOR ARDUINO TO REBOOT\n");
 	sleep(2);
 	printf("DONE\n");
-
+	
 	// Spawn receiver thread
 	pthread_t recv;
 
 	pthread_create(&recv, NULL, receiveThread, NULL);
+
 
 	// Send a hello packet
 	TPacket helloPacket;
@@ -363,7 +391,7 @@ int main()
 	while(!exitFlag)
 	{
 		char ch;
-		printf("Command (f=forward, b=reverse, l=turn left, r=turn right, s=stop, c=clear stats, g=get stats, q=exit, z=backtracking)\n");
+		printf("Command (f=forward, b=reverse, l=turn left, r=turn right, s=stop, m=mark location, c=clear stats, g=get stats, q=exit, z=backtracking)\n");
 		scanf("%c", &ch);
 
 		// Purge extraneous characters from input stream
@@ -371,43 +399,27 @@ int main()
 
 		sendCommand(ch);
 		
-		///////////////////////
-		
-		if(startBacktrack==1) {
+	if(startBacktrack==1) {
 			cout <<"backtrack starts"<<endl; //for checking
 			
 			while(!backtrackstack.empty()){
 				
-				sendCommand2(movementCommand.top());
-				cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
-				movementCommand.pop();
-				backtrackstack.pop();
+					sendCommand2(movementCommand.top());
+					cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
+					
+					movementCommand.pop();
+					backtrackstack.pop();
 
-			//	flushInput();
-			//	flushInput2();
-				sleep(2);
-			//	cin.get();
+			//sleep(2);
 			}
 
 			break;
 		}
-		///////////////////////
+		/////////////////////////////////////////////////////////////////////
 
 
 	}
 
-	////////////////////////
-/*	if(startBacktrack==1) {
-		while(!backtrackstack.empty()){
-			flushInput();
-			
-			sendCommand2(movementCommand.top());
-			cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
-			movementCommand.pop();
-			backtrackstack.pop();
-		}
-	}
-*/	////////////////////////
 
 	printf("Closing connection to Arduino.\n");
 	endSerial();
