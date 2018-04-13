@@ -287,7 +287,7 @@ void sendCommand(char command)
 	}
 
 	//sleep until ack falg == 1
-	while(doneFlag==0) {};
+	while(doneFlag==0 && !(command=='q' || command=='Q' || command=='m' || command=='M' || command=='z' || command=='Z') ) {};
 
 	///////////////////////////////////////////////////////////////
 	if(startBacktrack==0 && !(command=='z' || command=='Z' || command=='C' || command=='c' ||
@@ -398,23 +398,22 @@ int main()
 
 		sendCommand(ch);
 		
-	if(startBacktrack==1) {
-			cout <<"backtrack starts"<<endl; //for checking
-			
-			while(!backtrackstack.empty()){
+		if(startBacktrack==1) {
+				cout <<"backtrack starts"<<endl; //for checking
 				
-					sendCommand2(movementCommand.top());
-					cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
+				while(!backtrackstack.empty()){
 					
-					movementCommand.pop();
-					backtrackstack.pop();
+						sendCommand2(movementCommand.top());
+						cout << "movementCommand is poped: " <<movementCommand.top() <<endl; //for checking
+						
+						movementCommand.pop();
+						backtrackstack.pop();
 
-			//sleep(2);
+				}
+
+				break;
 			}
-
-			break;
-		}
-		/////////////////////////////////////////////////////////////////////
+			/////////////////////////////////////////////////////////////////////
 
 
 	}
