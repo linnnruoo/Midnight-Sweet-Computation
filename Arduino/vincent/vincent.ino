@@ -222,7 +222,7 @@ void sendOK() {
 void sendDone(){
   TPacket donePacket;
   donePacket.packetType = PACKET_TYPE_RESPONSE;
-  donePacket.command = DONE_OK;
+  donePacket.command = RESP_DONE;
   sendResponse (&donePacket);
 }
 
@@ -803,4 +803,3 @@ void loop() {
     }
   }
 }
-
