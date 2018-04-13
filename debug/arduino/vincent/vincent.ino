@@ -1,6 +1,6 @@
 #include <math.h>
 #include <serialize.h>
-#include <buffer.h>
+//#include <buffer.h>
 
 #include "packet.h"
 #include "constants.h"
@@ -21,8 +21,10 @@ TO SET 0, use &=
  
 */
 // Data Type for Serial Communication
-TBuffer _recvBuffer, _xmitBuffer;
+//static TBuffer _recvBuffer, _xmitBuffer;
 
+#define XMIT_SIZE      128
+#define RECV_SIZE      128
 
 //////////////////////
 //Ultrasonic sensors
@@ -76,7 +78,7 @@ volatile TDirection dir = STOP;
 // Vincent moves in the correct direction
 #define LF                  6   // Left forward pin
 #define LR                  5   // Left reverse pin
-#define RF                  11  // Right forward pin
+#define RF                  9  // Right forward pin
 #define RR                  10  // Right reverse pin
 
 // PI, for calculating turn circumference
@@ -219,7 +221,6 @@ void sendBadCommand() {
   badCommand.packetType=PACKET_TYPE_ERROR;
   badCommand.command=RESP_BAD_COMMAND;
   sendResponse(&badCommand);
-    
 }
 
 void sendBadResponse() {
@@ -337,25 +338,22 @@ ISR(INT1_vect) {
  * Setup and start codes for serial communications
  *
  */
-void setBaud(unsigned long baudRate) {
-  unsigned int b;
-  b = (unsigned int) round(F_CPU / (16.0 * baudRate)) - 1;
-  UBRR0H = (unsigned char) (b>>8);
-  UBRR0L = (unsigned char) b;
-}
+ 
 
 // Set up the serial connection. For now we are using
 // Arduino Wiring, you will replace this later
 // with bare-metal code.
 void setupSerial() {
   // To replace later with bare-metal.
-  //Serial.begin(9600);
+  Serial.begin(9600);
 
   //USART to work at 9600 in 8N1 format
-  UCSR0C = 0b00000110; // Set USART to Asynchronous mode, N partity mode, 1 stop bit and 8-bit character size
-  setBaud(9600);
-  UCSR0A = 0b00000000;
-  
+  //UCSR0C = 0b00000110; // Set USART to Asynchronous mode, N partity mode, 1 stop bit and 8-bit character size
+
+  // Set baud rate to 9600
+  //UBRR0L = 103;  //CHANGES 12042018
+  //UBRR0H = 0;     //CHANGES 12042018
+    
 }
 
 // Start the serial connection. For now we are using
@@ -369,7 +367,15 @@ void startSerial() {
   // Start the serial port
   // Enable RXC and UDRIE0
   // Enable USART receiver and transmitter
-  UCSR0B = 0b10111000; 
+  //UCSR0B = 0b10111000; 
+}
+
+/*
+void setupBuffers()
+{
+  // Initialize the receive and transmit buffers.
+  initBuffer(&_recvBuffer, RECV_SIZE);
+  initBuffer(&_xmitBuffer, XMIT_SIZE);
 }
 
 ISR(USART_RX_vect) {
@@ -385,24 +391,27 @@ ISR(USART_UDRE_vect) {
 
   if(result == BUFFER_OK)
     UDR0 = data;
-  else if (result == BUFFER_EMPTY)
-    UCSR0B &= 0b11011111;
+  else 
+    if (result == BUFFER_EMPTY)
+      UCSR0B &= 0b11011111;
 }
+*/
 
 // Read the serial port. Returns the read character in
 // ch if available. Also returns TRUE if ch is valid.
 // This will be replaced later with bare-metal code.
 
 int readSerial(char *buffer) {
-  /*
+
+  
   int count=0;
 
   while(Serial.available())
     buffer[count++] = Serial.read();
 
   return count;
-  */
-
+  
+  /*
   int count = 0;
 
   TBufferResult result;
@@ -415,14 +424,16 @@ int readSerial(char *buffer) {
   } while (result == BUFFER_OK);
 
   return count;
+  */
 }
 
 // Write to the serial port. Replaced later with
 // bare-metal code
 
 void writeSerial(const char *buffer, int len) {
-  //Serial.write(buffer, len);
+  Serial.write(buffer, len);
 
+  /*
   TBufferResult result = BUFFER_OK;
 
   int i;
@@ -433,6 +444,7 @@ void writeSerial(const char *buffer, int len) {
   UDR0 = buffer[0];
 
   UCSR0B |= 0b00100000;
+  */
 }
 
 /*
@@ -443,22 +455,30 @@ void writeSerial(const char *buffer, int len) {
 // Set up Vincent's motors. Right now this is empty, but
 // later you will replace it with code to set up the PWMs
 // to drive the motors.
+int pwm_speed_LF =0 , pwm_speed_LR =0, pwm_speed_RF =0, pwm_speed_RR =0; //declare 4 global variables to change the pwm values in the ISRs
 void setupMotors() {
   
-    /* Our motor set up is:
+    /*    Our motor set up is:
      *    A1IN - Pin 5, PD5, OC0B (Left reverse pin, LR)
      *    A2IN - Pin 6, PD6, OC0A (Left foward pin, LF)
      *    B1IN - Pin 10, PB2, OC1B (Right reverse pin, RR)
-     *    B2In - pIN 11, PB3, OC2A (Right forward pin, RF)
+     *    B2In - pIN 9, PB1, OC1A (Right forward pin, RF)
      */
-  
-  DDRD |= 01100000; // PORT D, PD5 LR & 6 LF, OUTPUT (1)     
-  DDRB |= 00001100; // PORT B, PB2 RR & 3 RF, OUTPUT (1)
 
-//     pinMode(LF, OUTPUT);
-//     pinMode(LR, OUTPUT);
-//     pinMode(RF, OUTPUT);
-//     pinMode(RR, OUTPUT);
+  DDRD |= 0b01100000; // Pin 5 and 6 for left motor
+  DDRB |= 0b00000110; // Pin 9 and 10 for right motor
+
+  // Set up TCN0 for left motor
+  TCNT0 = 0;
+  OCR0A = 0;
+  OCR0B = 0;
+  TIMSK0 |= 0b110;
+
+  // Set up TCN1 for right motor
+  TCNT1 = 0;
+  OCR1A = 0;
+  OCR1B = 0;
+  TIMSK1 |= 0b110;
 
 }
 
@@ -466,7 +486,10 @@ void setupMotors() {
 // We will implement this later. For now it is
 // blank.
 void startMotors() {
+  // Set TCN0 and TCN1 to prescalar value of 64
   
+  TCCR0B = 0b00000011;
+  TCCR1B = 0b00000011;
 }
 
 void setupSensors() {
@@ -529,6 +552,49 @@ int pwmVal(float speed) {
   return (int) ((speed / 100.0) * 255.0);
 }
 
+  
+ISR(TIMER0_COMPA_vect) {
+  OCR0A = pwm_speed_LF;     //pin 6, PD6, OC0A, left forward
+}
+
+ISR(TIMER0_COMPB_vect) { 
+  OCR0B = pwm_speed_LR;     //pin 5, PD5, OC0B, left reverse
+}
+
+ISR(TIMER1_COMPA_vect){
+  OCR1A = pwm_speed_RF;      //pin 9, PB1, OC2A, right forward
+}
+
+ISR(TIMER1_COMPB_vect){      //pin 10, PB2, OC1B, right reverse
+  OCR1B = pwm_speed_RR;      //originally was OCR2B since in Appendix C was using pin PD3 (OC2B)
+}
+
+
+void right_motor_forward(void) {
+  // Using OCR1A counter
+  TCCR1A = 0b10000001;
+  PORTB &= 0b11111101;
+}
+
+void right_motor_reverse(void) {
+  // Using OCR1B counter
+  TCCR1A = 0b00100001;
+  PORTB &= 0b11111011;
+}
+
+void left_motor_forward(void) {
+  // Using OCR0A counter
+  TCCR0A = 0b10000001;
+  PORTD &= 0b11011111;
+}
+  
+void left_motor_reverse(void) {
+  // Using OCR0B counter
+  TCCR0A = 0b00100001;
+  PORTD &= 0b10111111;
+}
+ 
+
 // Move Vincent forward "dist" cm at speed "speed".
 // "speed" is expressed as a percentage. E.g. 50 is
 // move forward at half speed.
@@ -549,10 +615,18 @@ void forward(float dist, float speed) {
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
+  /*
   analogWrite(LF, val);
   analogWrite(RF, val - ADJUSTMENT_PWM_FWD);
   analogWrite(LR,0);
   analogWrite(RR, 0);
+  */
+  pwm_speed_LF = val;
+  pwm_speed_RF = val - ADJUSTMENT_PWM_FWD;
+  
+  left_motor_forward();
+  right_motor_forward();
+    
 }
 
 // Reverse Vincent "dist" cm at speed "speed".
@@ -575,10 +649,19 @@ void reverse(float dist, float speed) {
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
+  /*
   analogWrite(LR, val);
   analogWrite(RR, val - ADJUSTMENT_PWM_REV);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
+  */
+  pwm_speed_LR = val;
+  pwm_speed_RR = val - ADJUSTMENT_PWM_REV;
+    
+  left_motor_reverse();
+  right_motor_reverse();
+  
+  //BARE METAL END
 }
 
 // Estimate number of wheel ticks needed to turn an angle
@@ -614,10 +697,20 @@ void left(float ang, float speed) {
   // We will also replace this code with bare-metal later.
   // To turn left we reverse the left wheel and move
   // the right wheel forward.
+  /*
   analogWrite(LR, val);
   analogWrite(RF, val);
   analogWrite(LF, 0);
   analogWrite(RR, 0);
+  */
+
+  pwm_speed_RF = val - ADJUSTMENT_PWM_FWD;
+  pwm_speed_LR = val;
+  
+  left_motor_reverse();
+  right_motor_forward();
+  
+  //BARE METAL END
 }
 
 // Turn Vincent right "ang" degrees at speed "speed".
@@ -641,20 +734,32 @@ void right(float ang, float speed) {
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
+  /*
   analogWrite(RR, val);
   analogWrite(LF, val);
   analogWrite(LR, 0);
   analogWrite(RF, 0);
+  */
+  pwm_speed_LF = val;
+  pwm_speed_RR = val - ADJUSTMENT_PWM_REV;
+    
+  left_motor_forward();
+  right_motor_reverse();
 }
 
 // Stop Vincent. To replace with bare-metal code later.
 void stop() {
   dir = STOP;
-    
+  /*
   analogWrite(LF, 0);
   analogWrite(LR, 0);
   analogWrite(RF, 0);
   analogWrite(RR, 0);
+  */
+  pwm_speed_LF = 0;
+  pwm_speed_LR = 0;
+  pwm_speed_RF = 0;
+  pwm_speed_RR = 0;
 }
 
 /*
@@ -762,10 +867,11 @@ void setup() {
   cli();
   setupEINT();
   setupSerial();
+  //setupBuffers();
   startSerial();
   setupMotors();
   startMotors();
-  setupSensors();
+  //setupSensors();
   enablePullups();
   initializeState();
   sei();
@@ -794,15 +900,18 @@ void handlePacket(TPacket *packet) {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  startSensors(); // Initialize ultrasound and IR sensors
+  //startSensors(); // Initialize ultrasound and IR sensors
   
   TPacket recvPacket; // This holds commands from the Pi
     
   TResult result = readPacket(&recvPacket);
     
-  if(result == PACKET_OK)
+  if(result == PACKET_OK) {
+      //Serial.println("PACKET OK!");
       handlePacket(&recvPacket);
+  }
   else if(result == PACKET_BAD) {
+      //Serial.println("PACKET BAD!");
       sendBadPacket();
   }
   else if(result == PACKET_CHECKSUM_BAD) {
