@@ -80,7 +80,7 @@ void handleResponse(TPacket *packet)
 		break;
 
 		/////////////////////////////////////
-		case DONE_OK:
+		case RESP_DONE:
 			printf("FINALLY DONE\n");
 			doneFlag = 1;
 		break;
@@ -287,8 +287,7 @@ void sendCommand(char command)
 	}
 
 	//sleep until ack falg == 1
-	while(doneFlag==0 && !(command=='z' || command=='Z' || command=='C' || command=='c' ||
-		command=='g' || command=='G' || command=='Q' || command=='q' || command=='m' || command=='M')) {};
+	while(doneFlag==0) {};
 
 	///////////////////////////////////////////////////////////////
 	if(startBacktrack==0 && !(command=='z' || command=='Z' || command=='C' || command=='c' ||
