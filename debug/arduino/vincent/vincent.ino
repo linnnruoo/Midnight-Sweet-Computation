@@ -31,7 +31,7 @@ TO SET 0, use &=
 //trigPin: grey jumper
 //echoPin: white jumpemr 
 //////////////////////
-int trigPinU = 9;
+int trigPinU = 11;
 int echoPinU = 8;
 int duration;
 volatile unsigned long ultraInCm;
@@ -494,13 +494,13 @@ void startMotors() {
 
 void setupSensors() {
   /* CHECK EVERYTHING PLS
-   * int trigPinU = 9;    // Arduino Pin 9 = PB1
+   * int trigPinU = 11;    // Arduino Pin 11 = PB3
    * int echoPinU = 8;    // Arduino Pin 8 = PB0
    * #define leftIR A4    // Arduino Analog Pin 4 (ADC4) = PC4    //check from Week 4 Studio, GPIO Programming Slides
    * #define rightIR A5   // Arduino Analog Pin 5 (ADC5) = PC5
    */
   
-  DDRB |= 00000010;   //trigPinU (PB1) set to OUTPUT (1), 
+  DDRB |= 00001000;   //trigPinU (PB3) set to OUTPUT (1), 
   DDRB &= 11111110;   //echoPinU (PB0) set to INPUT (0)
   DDRC &= 11001111;   //PC4 and PC5 both set to INPUT (0)
 
@@ -515,14 +515,14 @@ void setupSensors() {
 void startSensors() {
   // Ultrasound
   //digitalWrite(trigPinU, LOW);
-  PORTB &= 11111101;    //digitalWrite(trigPinU, LOW),  trigPinU = PB1, set to 0
+  PORTB &= 11110111;    //digitalWrite(trigPinU, LOW),  trigPinU = PB3, set to 0
   delayMicroseconds(5);
   
   //digitalWrite(trigPinU, HIGH);
-  PORTB |= 00000010;    //digitalWrite(trigPinU, HIGH), trigPinU = PB1, set to 1
+  PORTB |= 00001000;    //digitalWrite(trigPinU, HIGH), trigPinU = PB3, set to 1
   delayMicroseconds(10);
   
-  PORTB &= 11111101;    //digitalWrite(trigPinU, LOW),  trigPinU = PB1, set to 0
+  PORTB &= 11110111;    //digitalWrite(trigPinU, LOW),  trigPinU = PB3, set to 0
   //digitalWrite(trigPinU, LOW);
 
   pinMode(echoPinU, INPUT);  //why declare pinMode for echoPinU twice?, test with and without this line
