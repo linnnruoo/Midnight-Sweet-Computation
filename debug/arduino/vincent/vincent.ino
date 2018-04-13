@@ -6,16 +6,11 @@
 #include "constants.h"
 
 /*
-
-
 CHECK
 AND
 COMBINE ALL THE DDRX (B,C,D)
-
 TYPE "bare metal start" IN CTRL + F FOR EASY ACCESS TO ALL THE ADDED BARE METAL CODES
-
 UPDATE THE VINCENT LENGTH AND BREADTH ONCE FINAL CONFIGURATION OF VINCENT IS DONE
-
 TO SET 1, use |=
 TO SET 0, use &=
  
@@ -248,6 +243,15 @@ void sendResponse(TPacket *packet) {
 }
 
 
+////////////////////////////////////////////////////
+void sendDone(){
+  TPacket donePacket;
+  donePacket.packetType = PACKET_TYPE_RESPONSE;
+  donePacket.command = RESP_DONE;
+  sendResponse (&donePacket);
+}
+////////////////////////////////////////////////////
+
 /*
  * Setup and start codes for external interrupts and
  * pullup resistors.
@@ -377,18 +381,14 @@ void setupBuffers()
   initBuffer(&_recvBuffer, RECV_SIZE);
   initBuffer(&_xmitBuffer, XMIT_SIZE);
 }
-
 ISR(USART_RX_vect) {
   // Write received data
   unsigned char data = UDR0;
-
   writeBuffer(&_recvBuffer, data);
 }
-
 ISR(USART_UDRE_vect) {
   unsigned char data;
   TBufferResult result = readBuffer(&_xmitBuffer, &data);
-
   if(result == BUFFER_OK)
     UDR0 = data;
   else 
@@ -413,16 +413,12 @@ int readSerial(char *buffer) {
   
   /*
   int count = 0;
-
   TBufferResult result;
-
   do {
     result = readBuffer(&_recvBuffer, &buffer[count]);
-
     if (result == BUFFER_OK)
       count++;
   } while (result == BUFFER_OK);
-
   return count;
   */
 }
@@ -435,14 +431,10 @@ void writeSerial(const char *buffer, int len) {
 
   /*
   TBufferResult result = BUFFER_OK;
-
   int i;
-
   for (int i=1; i<len && result == BUFFER_OK; i++)
     result = writeBuffer(&_xmitBuffer, buffer[i]);
-
   UDR0 = buffer[0];
-
   UCSR0B |= 0b00100000;
   */
 }
@@ -759,6 +751,18 @@ void stop() {
   pwm_speed_RR = 0;
 }
 
+void mark_location(){
+  dir = STOP;
+  pwm_speed_LF = 0;
+  pwm_speed_LR = 0;
+  pwm_speed_RF = 0;
+  pwm_speed_RR = 0;
+  
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(500);
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
 /*
  * Vincent's setup and run codes
  *
@@ -799,31 +803,51 @@ void handleCommand(TPacket *command) {
       sendOK();
       forward((float) command->params[0], (float) command->params[1]);
       break;
+      
     case COMMAND_REVERSE:
       sendOK();
       reverse((float) command->params[0], (float) command->params[1]);
       break;
+      
     case COMMAND_TURN_LEFT:
       sendOK();
       left((float) command->params[0], (float) command->params[1]);
       break;
+      
     case COMMAND_TURN_RIGHT:
       sendOK();
       right((float) command->params[0], (float) command->params[1]);
       break;
+      
     case COMMAND_STOP:
       stop();
+      sendDone(); //edited
       break;
+    
     case COMMAND_GET_STATS:
       sendStatus();
+      sendDone(); //edited
       break;
+    
     case COMMAND_CLEAR_STATS:
       //clearOneCounter(command->params[0]);
       clearCounters();
       sendOK();
+      sendDone(); //edited
       break;
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    case COMMAND_MARK:
+      sendOK();
+      mark_location(); //play the buzzer in this function //to be implemented
+      sendDone(); //edited
+      break;
+    //////////////////////////////////////////////////////////////////////////////////////
+    
+      
     default:
       sendBadCommand();
+      sendDone();
     }
 }
 
@@ -921,6 +945,7 @@ void loop() {
         deltaDist = 0;
         newDist = 0;
         stop();
+        sendDone();
       }
     }
     else if(dir == BACKWARD) {
@@ -928,12 +953,14 @@ void loop() {
         deltaDist = 0;
         newDist = 0;
         stop();
+        sendDone();
       }
     }
     else if(dir == STOP) {
       deltaDist = 0;
       newDist = 0;
       stop();
+      sendDone();
     }
   }
 
@@ -943,6 +970,7 @@ void loop() {
         deltaTicks = 0;
         targetTicks = 0;
         stop(); 
+        sendDone();
       }
     }
     else if (dir == RIGHT) {
@@ -950,12 +978,14 @@ void loop() {
         deltaTicks = 0;
         targetTicks = 0;
         stop();
+        sendDone();
       }
     }
     else if(dir == STOP) {
       deltaTicks = 0;
       targetTicks = 0;
       stop();
+      sendDone();
     }
   }
 }
