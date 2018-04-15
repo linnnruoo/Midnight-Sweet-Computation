@@ -6,11 +6,11 @@ But nightmare to us.
 ## Getting Started
 
 Please note that files and programs in this repository together with their descriptions are as follow:
-    1. /Arduino/        - This folder contains the current working release of Arduino program
-    2. /Pi/                 - This folder contains the current working release of the Master Control program
-    3. /debug/          - This folder contains the current debug build of the Arduino and Master Control programs
-    4. /vanilla/          - This folder contains the vanilla build of the Arduino and Master Control programs
-    5. /others/          - This folder contains miscellaneous programs that are used for testing purposes
+1. `/Arduino/` - This folder contains the current working release of Arduino program
+2. `/Pi/` - This folder contains the current working release of the Master Control program
+3. `/debug/` - This folder contains the current debug build of the Arduino and Master Control programs
+4. `/vanilla/` - This folder contains the vanilla build of the Arduino and Master Control programs
+5. `/others/` - This folder contains miscellaneous programs that are used for testing purposes
     
 For most part of this readme, the instructions based on the Master Control program in the /Arduino/ and /Pi/ folders.
 
