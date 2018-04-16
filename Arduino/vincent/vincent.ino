@@ -1,19 +1,36 @@
-#include <serialize.h>
 #include <math.h>
+#include <serialize.h>
+#include <buffer.h>
 
 #include "packet.h"
 #include "constants.h"
 
+/*
+CHECK
+AND
+COMBINE ALL THE DDRX (B,C,D)
+TYPE "bare metal start" IN CTRL + F FOR EASY ACCESS TO ALL THE ADDED BARE METAL CODES
+UPDATE THE VINCENT LENGTH AND BREADTH ONCE FINAL CONFIGURATION OF VINCENT IS DONE
+TO SET 1, use |=
+TO SET 0, use &=
+ 
+*/
+// Data Type for Serial Communication
+static TBuffer _recvBuffer, _xmitBuffer;
+
+#define XMIT_SIZE      128
+#define RECV_SIZE      128
+
 //////////////////////
 //Ultrasonic sensors
 //trigPin: grey jumper
-//echoPin: white jumper 
+//echoPin: white jumpemr 
 //////////////////////
 int trigPinU = 11;
 int echoPinU = 8;
 int duration;
 volatile unsigned long ultraInCm;
-
+//////////////////////
 //////////////////////
 //IR sensors
 //////////////////////
@@ -22,9 +39,7 @@ volatile unsigned long ultraInCm;
 
 volatile unsigned long rightIRreading;
 volatile unsigned long leftIRreading;
-
-#define LEDpin 13 //LED
-
+/////////////////////
 
 typedef enum {
   STOP=0,
@@ -36,14 +51,39 @@ typedef enum {
 
 volatile TDirection dir = STOP;
 
+
+/////////////////
+// BUZZER
+/////////////////
+#define BUZZER              7
+// Buzzer tones
+#define  Cused              956       // 1046.5 Hz C5
+#define  Gsharp             1204      // 830.61 Hz G4#
+#define  Asharp             1073      // 932.33 Hz A4#
+#define  R                  0         // rest 0 Hz
+// Array of notes to be played and the duration to be played
+int melody[] = {Cused, R, Cused, R, Cused, R, Cused, Gsharp, Asharp, Cused, R, Asharp, Cused, R};
+int beats[]  = {10, 5, 10, 5, 10, 5, 45, 45, 45, 20, 5, 15, 45, 10};
+int MAX_COUNT = sizeof(melody)/2;
+// Set overall tempo
+long tempo = 10000;
+// Set length of pause between notes
+int pause = 1000;
+// Loop variable to increase Rest length
+int rest_count = 100; //<-BLETCHEROUS HACK; See NOTES
+// Initialize core variables
+int tone_ = 0;
+int beat = 0;
+long tone_duration  = 0;
+
 /*
  * Vincent's configuration constants
  */
 
 // Number of ticks per revolution from the
 // wheel encoder.
-#define ADJUSTMENT_PWM_FWD      20
-#define ADJUSTMENT_PWM_REV      32
+#define ADJUSTMENT_PWM_FWD      25
+#define ADJUSTMENT_PWM_REV      22
 #define COUNTS_PER_REV          192
 //#define COUNTS_PER_REV_RIGHT      266
 
@@ -65,8 +105,8 @@ volatile TDirection dir = STOP;
 //#define PI                  3.141592654
 
 // Vincent's length and breadth in cm
-#define VINCENT_LENGTH      17.20
-#define VINCENT_BREADTH     10.90
+#define VINCENT_LENGTH      17.20    //17.5 ++  (updated 09/04)
+#define VINCENT_BREADTH     10.90    //12.7     (updated 09/04)
 
 /*
  *    Vincent's State Variables
@@ -201,7 +241,6 @@ void sendBadCommand() {
   badCommand.packetType=PACKET_TYPE_ERROR;
   badCommand.command=RESP_BAD_COMMAND;
   sendResponse(&badCommand);
-    
 }
 
 void sendBadResponse() {
@@ -218,17 +257,6 @@ void sendOK() {
   sendResponse(&okPacket);
 }
 
-////////////////////////////////////////////////////
-void sendDone(){
-  TPacket donePacket;
-  donePacket.packetType = PACKET_TYPE_RESPONSE;
-  donePacket.command = RESP_DONE;
-  sendResponse (&donePacket);
-}
-
-
-////////////////////////////////////////////////////
-
 void sendResponse(TPacket *packet) {
   // Takes a packet, serializes it then sends it out
   // over the serial port.
@@ -240,6 +268,15 @@ void sendResponse(TPacket *packet) {
 }
 
 
+////////////////////////////////////////////////////
+void sendDone(){
+  TPacket donePacket;
+  donePacket.packetType = PACKET_TYPE_RESPONSE;
+  donePacket.command = RESP_DONE;
+  sendResponse (&donePacket);
+}
+////////////////////////////////////////////////////
+
 /*
  * Setup and start codes for external interrupts and
  * pullup resistors.
@@ -250,7 +287,7 @@ void enablePullups() {
   // Use bare-metal to enable the pull-up resistors on pins
   // 2 and 3. These are pins PD2 and PD3 respectively.
   // We set bits 2 and 3 in DDRD to 0 to make them inputs.
-  DDRD &= 0b11110011; // Set port 2 and 3 as output
+  DDRD &= 0b11110011; // Set port 2 and 3 as input
   PORTD |= 0b00001100;    // Set port 2 and 3 as HIGH output  
 }
 
@@ -330,12 +367,24 @@ ISR(INT1_vect) {
  * Setup and start codes for serial communications
  *
  */
+ 
+
 // Set up the serial connection. For now we are using
 // Arduino Wiring, you will replace this later
 // with bare-metal code.
 void setupSerial() {
   // To replace later with bare-metal.
-  Serial.begin(9600);
+  //Serial.begin(9600);
+  UBRR0L = 103;  //CHANGES 12042018
+  UBRR0H = 0;     //CHANGES 12042018
+
+
+  //USART to work at 9600 in 8N1 format
+  UCSR0C = 0b00000110; // Set USART to Asynchronous mode, N partity mode, 1 stop bit and 8-bit character size
+  UCSR0A = 0;
+  
+  // Set baud rate to 9600
+    
 }
 
 // Start the serial connection. For now we are using
@@ -344,27 +393,92 @@ void setupSerial() {
 
 void startSerial() {
   // Empty for now. To be replaced with bare-metal code
-  // later on.  
+  // later on. 
+  
+  // Start the serial port
+  // Enable RXC and UDRIE0
+  // Enable USART receiver and transmitter
+  // UCSR0B = 0b10111000;
+
+  // Using polling for transmitting
+  UCSR0B = 0b10011000; 
 }
+
+
+void setupBuffers()
+{
+  // Initialize the receive and transmit buffers.
+  initBuffer(&_recvBuffer, RECV_SIZE);
+  //initBuffer(&_xmitBuffer, XMIT_SIZE);
+}
+
+ISR(USART_RX_vect) {
+  // Write received data
+  unsigned char data = UDR0;
+  writeBuffer(&_recvBuffer, data);
+}
+
+/*
+ISR(USART_UDRE_vect) {
+  unsigned char data;
+  TBufferResult result = readBuffer(&_xmitBuffer, &data);
+  if(result == BUFFER_OK)
+    UDR0 = data;
+  else 
+    if (result == BUFFER_EMPTY)
+      UCSR0B &= 0b11011111;
+}
+*/
 
 // Read the serial port. Returns the read character in
 // ch if available. Also returns TRUE if ch is valid.
 // This will be replaced later with bare-metal code.
 
-int readSerial(char *buffer) {
+int readSerial(unsigned char *line) {
+
+  /*
   int count=0;
-    
+
   while(Serial.available())
     buffer[count++] = Serial.read();
 
+  return count;
+  
+  */
+  int count = 0;
+  
+  TBufferResult result;
+  
+  do {
+    result = readBuffer(&_recvBuffer, &line[count]);
+    if (result == BUFFER_OK)
+      count++;
+  } while (result == BUFFER_OK);
+  
   return count;
 }
 
 // Write to the serial port. Replaced later with
 // bare-metal code
 
-void writeSerial(const char *buffer, int len) {
-  Serial.write(buffer, len);
+void writeSerial(const unsigned char *line, int len) {
+  //Serial.write(buffer, len);
+
+  /*
+  TBufferResult result = BUFFER_OK;
+  int i;
+  for (int i=1; i<len && result == BUFFER_OK; i++)
+    result = writeBuffer(&_xmitBuffer, buffer[i]);
+  UDR0 = buffer[0];
+  UCSR0B |= 0b00100000;
+  */
+
+  // Using polling to write to Pi
+  while (len--){
+      while ((UCSR0A & 0b00100000) == 0);
+      UDR0 = *line;
+      line++;
+  }
 }
 
 /*
@@ -375,26 +489,86 @@ void writeSerial(const char *buffer, int len) {
 // Set up Vincent's motors. Right now this is empty, but
 // later you will replace it with code to set up the PWMs
 // to drive the motors.
+int pwm_speed_LF =0 , pwm_speed_LR =0, pwm_speed_RF =0, pwm_speed_RR =0; //declare 4 global variables to change the pwm values in the ISRs
 void setupMotors() {
   
-    /* Our motor set up is:
-     *    A1IN - Pin 5, PD5, OC0B
-     *    A2IN - Pin 6, PD6, OC0A
-     *    B1IN - Pin 10, PB2, OC1B
-     *    B2In - pIN 11, PB3, OC2A
+    /*    Our motor set up is:
+     *    A1IN - Pin 5, PD5, OC0B (Left reverse pin, LR)
+     *    A2IN - Pin 6, PD6, OC0A (Left foward pin, LF)
+     *    B1IN - Pin 10, PB2, OC1B (Right reverse pin, RR)
+     *    B2In - pIN 9, PB1, OC1A (Right forward pin, RF)
      */
-//     pinMode(LF, OUTPUT);
-//     pinMode(LR, OUTPUT);
-//     pinMode(RF, OUTPUT);
-//     pinMode(RR, OUTPUT);
+
+  DDRD |= 0b01100000; // Pin 5 and 6 for left motor
+  DDRB |= 0b00000110; // Pin 9 and 10 for right motor
+
+  // Set up TCN0 for left motor
+  TCNT0 = 0;
+  OCR0A = 0;
+  OCR0B = 0;
+  TIMSK0 |= 0b110;
+
+  // Set up TCN1 for right motor
+  TCNT1 = 0;
+  OCR1A = 0;
+  OCR1B = 0;
+  TIMSK1 |= 0b110;
+
 }
 
 // Start the PWM for Vincent's motors.
 // We will implement this later. For now it is
 // blank.
 void startMotors() {
+  // Set TCN0 and TCN1 to prescalar value of 64
+  
+  TCCR0B = 0b00000011;
+  TCCR1B = 0b00000011;
+}
+
+
+void setupSensors() {
+  /* CHECK EVERYTHING PLS
+   * int trigPinU = 11;    // Arduino Pin 11 = PB3
+   * int echoPinU = 8;    // Arduino Pin 8 = PB0
+   * #define leftIR A4    // Arduino Analog Pin 4 (ADC4) = PC4    //check from Week 4 Studio, GPIO Programming Slides
+   * #define rightIR A5   // Arduino Analog Pin 5 (ADC5) = PC5
+   */
+  
+  //DDRB |= 00001000;   //trigPinU (PB3) set to OUTPUT (1), 
+  //DDRB &= 11111110;   //echoPinU (PB0) set to INPUT (0)
+  DDRC &= 11001111;   //PC4 and PC5 both set to INPUT (0)
+
+  
+  pinMode(trigPinU, OUTPUT);
+  pinMode(echoPinU, INPUT);
+  //pinMode(leftIR, INPUT);
+  //pinMode(rightIR, INPUT);
   
 }
+
+void startSensors() {
+  // Ultrasound
+  digitalWrite(trigPinU, LOW);
+  //PORTB &= 11110111;    //digitalWrite(trigPinU, LOW),  trigPinU = PB3, set to 0
+  delayMicroseconds(5);
+  
+  digitalWrite(trigPinU, HIGH);
+  //PORTB |= 00001000;    //digitalWrite(trigPinU, HIGH), trigPinU = PB3, set to 1
+  delayMicroseconds(10);
+    
+  duration = pulseIn(echoPinU, HIGH, 4000);
+  ultraInCm = (duration/2) / 29.1;
+
+  //IR Sensors
+  //its either CLEAR or TOO NEAR
+  //rightIRreading = digitalRead(rightIR);
+  rightIRreading = (PINC & 0b00010000) ? 1 : 0;  //rightIRreading = digitalRead(rightIR), Arduino Analog Pin 4 (ADC4) = PC4
+
+  //leftIRreading = digitalRead(leftIR);
+  leftIRreading =  (PINC & 0b00100000) ? 1 : 0;  //leftIRreading = digitalRead(leftIR), Arduino Analog Pin 5 (ADC5) = PC5
+}
+  
 
 // Convert percentages to PWM values
 int pwmVal(float speed) {
@@ -406,6 +580,49 @@ int pwmVal(float speed) {
     
   return (int) ((speed / 100.0) * 255.0);
 }
+
+  
+ISR(TIMER0_COMPA_vect) {
+  OCR0A = pwm_speed_LF;     //pin 6, PD6, OC0A, left forward
+}
+
+ISR(TIMER0_COMPB_vect) { 
+  OCR0B = pwm_speed_LR;     //pin 5, PD5, OC0B, left reverse
+}
+
+ISR(TIMER1_COMPA_vect){
+  OCR1A = pwm_speed_RF;      //pin 9, PB1, OC2A, right forward
+}
+
+ISR(TIMER1_COMPB_vect){      //pin 10, PB2, OC1B, right reverse
+  OCR1B = pwm_speed_RR;      //originally was OCR2B since in Appendix C was using pin PD3 (OC2B)
+}
+
+
+void rightMotorForward(void) {
+  // Using OCR1A counter
+  TCCR1A = 0b10000001;
+  PORTB &= 0b11111101;
+}
+
+void rightMotorReverse(void) {
+  // Using OCR1B counter
+  TCCR1A = 0b00100001;
+  PORTB &= 0b11111011;
+}
+
+void leftMotorForward(void) {
+  // Using OCR0A counter
+  TCCR0A = 0b10000001;
+  PORTD &= 0b11011111;
+}
+  
+void leftMotorReverse(void) {
+  // Using OCR0B counter
+  TCCR0A = 0b00100001;
+  PORTD &= 0b10111111;
+}
+ 
 
 // Move Vincent forward "dist" cm at speed "speed".
 // "speed" is expressed as a percentage. E.g. 50 is
@@ -427,10 +644,18 @@ void forward(float dist, float speed) {
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
+  /*
   analogWrite(LF, val);
   analogWrite(RF, val - ADJUSTMENT_PWM_FWD);
   analogWrite(LR,0);
   analogWrite(RR, 0);
+  */
+  pwm_speed_LF = val;
+  pwm_speed_RF = val - ADJUSTMENT_PWM_FWD;
+  
+  leftMotorForward();
+  rightMotorForward();
+    
 }
 
 // Reverse Vincent "dist" cm at speed "speed".
@@ -453,10 +678,19 @@ void reverse(float dist, float speed) {
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
+  /*
   analogWrite(LR, val);
   analogWrite(RR, val - ADJUSTMENT_PWM_REV);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
+  */
+  pwm_speed_LR = val;
+  pwm_speed_RR = val - ADJUSTMENT_PWM_REV;
+    
+  leftMotorReverse();
+  rightMotorReverse();
+  
+  //BARE METAL END
 }
 
 // Estimate number of wheel ticks needed to turn an angle
@@ -492,10 +726,20 @@ void left(float ang, float speed) {
   // We will also replace this code with bare-metal later.
   // To turn left we reverse the left wheel and move
   // the right wheel forward.
+  /*
   analogWrite(LR, val);
   analogWrite(RF, val);
   analogWrite(LF, 0);
   analogWrite(RR, 0);
+  */
+
+  pwm_speed_RF = val;
+  pwm_speed_LR = val;
+  
+  leftMotorReverse();
+  rightMotorForward();
+  
+  //BARE METAL END
 }
 
 // Turn Vincent right "ang" degrees at speed "speed".
@@ -519,39 +763,79 @@ void right(float ang, float speed) {
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
+  /*
   analogWrite(RR, val);
   analogWrite(LF, val);
   analogWrite(LR, 0);
   analogWrite(RF, 0);
+  */
+  pwm_speed_LF = val;
+  pwm_speed_RR = val - 20;
+    
+  leftMotorForward();
+  rightMotorReverse();
 }
 
 // Stop Vincent. To replace with bare-metal code later.
 void stop() {
   dir = STOP;
-    
+  /*
   analogWrite(LF, 0);
   analogWrite(LR, 0);
   analogWrite(RF, 0);
   analogWrite(RR, 0);
+  */
+  pwm_speed_LF = 0;
+  pwm_speed_LR = 0;
+  pwm_speed_RF = 0;
+  pwm_speed_RR = 0;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////
 //stop vincent and play the sound
-void mark_location() {
-  dir = STOP;
-  analogWrite(LF, 0);
-  analogWrite(LR, 0);
-  analogWrite(RF, 0);
-  analogWrite(RR, 0);
-  
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(500);
-  digitalWrite(LED_BUILTIN, LOW);
- // delay(500);  
-  //to be implemented
-  
+void markLocation(){
+  stop();
+
+  // Initiate buzzer sequence
+  for (int i=0; i<MAX_COUNT; i++) {
+    tone_ = melody[i];
+    beat = beats[i];
+
+    tone_duration = beat * tempo; // Set up timing
+
+    playTone(); 
+    // A pause between notes...
+    delayMicroseconds(pause);
+  }
 }
-///////////////////////////////////////////////////////////////////////////////////////
+
+void setupBuzzer(){
+  //pinMode(BUZZER,OUTPUT);    //pin 7 for buzzer, PD7
+  DDRD |= 10000000;        //pin 7, PD7 set to OUTPUT (1)
+}
+
+void playTone() {
+  long elapsed_time = 0;
+  if (tone_ > 0) { // if this isn't a Rest beat, while the tone has 
+    //  played less long than 'tone_duration', pulse Buzzer HIGH and LOW
+    while (elapsed_time < tone_duration) {
+     
+      PORTD |= 10000000; //digitalWrite(BUZZER,HIGH);   BUZZER = pin 7, PD7, set to 1
+      delayMicroseconds(tone_ / 2);
+      
+      // DOWN
+      PORTD &= 01111111; //digitalWrite(BUZZER, LOW);   BUZZER = pin 7, PD7, set to 0
+      delayMicroseconds(tone_ / 2);
+
+      // Keep track of how long we pulsed
+      elapsed_time += (tone_);
+    } 
+  }
+  else { // Rest beat; loop times delay
+    for (int j = 0; j < rest_count; j++) { // See NOTE on rest_count
+      delayMicroseconds(tone_duration);  
+    }                                
+  }                                 
+}
 
 /*
  * Vincent's setup and run codes
@@ -592,55 +876,52 @@ void handleCommand(TPacket *command) {
     case COMMAND_FORWARD:
       sendOK();
       forward((float) command->params[0], (float) command->params[1]);
-     // sendDone(); //edited
-      
       break;
+      
     case COMMAND_REVERSE:
       sendOK();
       reverse((float) command->params[0], (float) command->params[1]);
-      //sendDone(); //edited
       break;
       
     case COMMAND_TURN_LEFT:
       sendOK();
       left((float) command->params[0], (float) command->params[1]);
-      //sendDone(); //edited
       break;
       
     case COMMAND_TURN_RIGHT:
       sendOK();
       right((float) command->params[0], (float) command->params[1]);
-     // sendDone(); //edited
       break;
       
     case COMMAND_STOP:
       stop();
       sendDone(); //edited
       break;
-      
+    
     case COMMAND_GET_STATS:
       sendStatus();
       sendDone(); //edited
       break;
-      
+    
     case COMMAND_CLEAR_STATS:
       //clearOneCounter(command->params[0]);
-      sendOK();
       clearCounters();
+      sendOK();
       sendDone(); //edited
       break;
 
     ///////////////////////////////////////////////////////////////////////////////////////
     case COMMAND_MARK:
       sendOK();
-      mark_location(); //play the buzzer in this function //to be implemented
+      markLocation(); //play the buzzer in this function //to be implemented
       sendDone(); //edited
       break;
     //////////////////////////////////////////////////////////////////////////////////////
     
+      
     default:
       sendBadCommand();
-      sendDone(); //edited
+      sendDone();
     }
 }
 
@@ -677,21 +958,16 @@ void setup() {
   //Compute the diagonal
   vincentDiagonal = sqrt((VINCENT_LENGTH * VINCENT_LENGTH) + (VINCENT_BREADTH * VINCENT_BREADTH));
   vincentCirc = PI * vincentDiagonal;
-
+  
   cli();
   setupEINT();
   setupSerial();
+  setupBuffers();
   startSerial();
+  setupBuzzer();
   setupMotors();
   startMotors();
-
-  pinMode(trigPinU, OUTPUT);
-  pinMode(echoPinU, INPUT);
-  pinMode(leftIR, INPUT);
-  pinMode(rightIR, INPUT);
-
-  pinMode(LEDpin, OUTPUT);
-  
+  setupSensors();
   enablePullups();
   initializeState();
   sei();
@@ -717,36 +993,21 @@ void handlePacket(TPacket *packet) {
   }
 }
 
-
 void loop() {
   // put your main code here, to run repeatedly:
-
-   /////// sensors///////////////////
-  digitalWrite(trigPinU, LOW);
-  delayMicroseconds(5);
-  digitalWrite(trigPinU, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPinU, LOW);
-
-  pinMode(echoPinU, INPUT);
-  duration = pulseIn(echoPinU, HIGH, 4000);
-  ultraInCm = (duration/2) / 29.1;
-
-
-  //its either CLEAR or TOO NEAR
-  rightIRreading = digitalRead(rightIR);
-  leftIRreading = digitalRead(leftIR);
-
-  /////////////////////////////////
-
+  
+  startSensors(); // Initialize ultrasound and IR sensors
   
   TPacket recvPacket; // This holds commands from the Pi
     
   TResult result = readPacket(&recvPacket);
     
-  if(result == PACKET_OK)
+  if(result == PACKET_OK) {
+      //Serial.println("PACKET OK!");
       handlePacket(&recvPacket);
+  }
   else if(result == PACKET_BAD) {
+      //Serial.println("PACKET BAD!");
       sendBadPacket();
   }
   else if(result == PACKET_CHECKSUM_BAD) {
@@ -803,3 +1064,5 @@ void loop() {
     }
   }
 }
+
+
