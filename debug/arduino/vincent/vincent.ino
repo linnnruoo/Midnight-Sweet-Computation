@@ -56,7 +56,6 @@ volatile TDirection dir = STOP;
 // BUZZER
 /////////////////
 #define BUZZER              7
-#define MAX_COUNT           7
 // Buzzer tones
 #define  Cused              956       // 1046.5 Hz C5
 #define  Gsharp             1204      // 830.61 Hz G4#
@@ -65,6 +64,7 @@ volatile TDirection dir = STOP;
 // Array of notes to be played and the duration to be played
 int melody[] = {Cused, R, Cused, R, Cused, R, Cused, Gsharp, Asharp, Cused, R, Asharp, Cused, R};
 int beats[]  = {10, 5, 10, 5, 10, 5, 45, 45, 45, 20, 5, 15, 45, 10};
+int MAX_COUNT = sizeof(melody)/2;
 // Set overall tempo
 long tempo = 10000;
 // Set length of pause between notes
@@ -82,8 +82,8 @@ long tone_duration  = 0;
 
 // Number of ticks per revolution from the
 // wheel encoder.
-#define ADJUSTMENT_PWM_FWD      20
-#define ADJUSTMENT_PWM_REV      32
+#define ADJUSTMENT_PWM_FWD      25
+#define ADJUSTMENT_PWM_REV      22
 #define COUNTS_PER_REV          192
 //#define COUNTS_PER_REV_RIGHT      266
 
@@ -798,17 +798,22 @@ void mark_location(){
   }
 }
 
+void setupBuzzer(){
+  //pinMode(BUZZER,OUTPUT);    //pin 7 for buzzer, PD7
+  DDRD |= 10000000;        //pin 7, PD7 set to OUTPUT (1)
+}
+
 void playTone() {
   long elapsed_time = 0;
   if (tone_ > 0) { // if this isn't a Rest beat, while the tone has 
-    //  played less long than 'duration', pulse Buzzer HIGH and LOW
-    while (elapsed_time < duration) {
-
-      digitalWrite(BUZZER,HIGH);
+    //  played less long than 'tone_duration', pulse Buzzer HIGH and LOW
+    while (elapsed_time < tone_duration) {
+     
+      PORTD |= 10000000; //digitalWrite(BUZZER,HIGH);   BUZZER = pin 7, PD7, set to 1
       delayMicroseconds(tone_ / 2);
-
+      
       // DOWN
-      digitalWrite(BUZZER, LOW);
+      PORTD &= 01111111; //digitalWrite(BUZZER, LOW);   BUZZER = pin 7, PD7, set to 0
       delayMicroseconds(tone_ / 2);
 
       // Keep track of how long we pulsed
@@ -817,7 +822,7 @@ void playTone() {
   }
   else { // Rest beat; loop times delay
     for (int j = 0; j < rest_count; j++) { // See NOTE on rest_count
-      delayMicroseconds(duration);  
+      delayMicroseconds(tone_duration);  
     }                                
   }                                 
 }
@@ -943,12 +948,13 @@ void setup() {
   //Compute the diagonal
   vincentDiagonal = sqrt((VINCENT_LENGTH * VINCENT_LENGTH) + (VINCENT_BREADTH * VINCENT_BREADTH));
   vincentCirc = PI * vincentDiagonal;
-
+  
   cli();
   setupEINT();
   setupSerial();
   //setupBuffers();
   startSerial();
+  setupBuzzer();
   setupMotors();
   startMotors();
   setupSensors();
@@ -979,7 +985,7 @@ void handlePacket(TPacket *packet) {
 
 void loop() {
   // put your main code here, to run repeatedly:
-
+  
   startSensors(); // Initialize ultrasound and IR sensors
   
   TPacket recvPacket; // This holds commands from the Pi
@@ -1048,4 +1054,5 @@ void loop() {
     }
   }
 }
+
 
