@@ -1,6 +1,6 @@
 #include <math.h>
 #include <serialize.h>
-//#include <buffer.h>
+#include <buffer.h>
 
 #include "packet.h"
 #include "constants.h"
@@ -16,7 +16,7 @@ TO SET 0, use &=
  
 */
 // Data Type for Serial Communication
-//static TBuffer _recvBuffer, _xmitBuffer;
+static TBuffer _recvBuffer, _xmitBuffer;
 
 #define XMIT_SIZE      128
 #define RECV_SIZE      128
@@ -582,25 +582,25 @@ ISR(TIMER1_COMPB_vect){      //pin 10, PB2, OC1B, right reverse
 }
 
 
-void right_motor_forward(void) {
+void rightMotorForward(void) {
   // Using OCR1A counter
   TCCR1A = 0b10000001;
   PORTB &= 0b11111101;
 }
 
-void right_motor_reverse(void) {
+void rightMotorReverse(void) {
   // Using OCR1B counter
   TCCR1A = 0b00100001;
   PORTB &= 0b11111011;
 }
 
-void left_motor_forward(void) {
+void leftMotorForward(void) {
   // Using OCR0A counter
   TCCR0A = 0b10000001;
   PORTD &= 0b11011111;
 }
   
-void left_motor_reverse(void) {
+void leftMotorReverse(void) {
   // Using OCR0B counter
   TCCR0A = 0b00100001;
   PORTD &= 0b10111111;
@@ -636,8 +636,8 @@ void forward(float dist, float speed) {
   pwm_speed_LF = val;
   pwm_speed_RF = val - ADJUSTMENT_PWM_FWD;
   
-  left_motor_forward();
-  right_motor_forward();
+  leftMotorForward();
+  rightMotorForward();
     
 }
 
@@ -670,8 +670,8 @@ void reverse(float dist, float speed) {
   pwm_speed_LR = val;
   pwm_speed_RR = val - ADJUSTMENT_PWM_REV;
     
-  left_motor_reverse();
-  right_motor_reverse();
+  leftMotorReverse();
+  rightMotorReverse();
   
   //BARE METAL END
 }
@@ -716,11 +716,11 @@ void left(float ang, float speed) {
   analogWrite(RR, 0);
   */
 
-  pwm_speed_RF = val - ADJUSTMENT_PWM_FWD;
+  pwm_speed_RF = val;
   pwm_speed_LR = val;
   
-  left_motor_reverse();
-  right_motor_forward();
+  leftMotorReverse();
+  rightMotorForward();
   
   //BARE METAL END
 }
@@ -753,10 +753,10 @@ void right(float ang, float speed) {
   analogWrite(RF, 0);
   */
   pwm_speed_LF = val;
-  pwm_speed_RR = val - ADJUSTMENT_PWM_REV;
+  pwm_speed_RR = val - 20;
     
-  left_motor_forward();
-  right_motor_reverse();
+  leftMotorForward();
+  rightMotorReverse();
 }
 
 // Stop Vincent. To replace with bare-metal code later.
@@ -775,17 +775,10 @@ void stop() {
 }
 
 //stop vincent and play the sound
-void mark_location(){
-  dir = STOP;
-  pwm_speed_LF = 0;
-  pwm_speed_LR = 0;
-  pwm_speed_RF = 0;
-  pwm_speed_RR = 0;
-  
-  //digitalWrite(LED_BUILTIN, HIGH);
-  //delay(500);
-  //digitalWrite(LED_BUILTIN, LOW);
+void markLocation(){
+  stop();
 
+  // Initiate buzzer sequence
   for (int i=0; i<MAX_COUNT; i++) {
     tone_ = melody[i];
     beat = beats[i];
@@ -903,7 +896,7 @@ void handleCommand(TPacket *command) {
     ///////////////////////////////////////////////////////////////////////////////////////
     case COMMAND_MARK:
       sendOK();
-      mark_location(); //play the buzzer in this function //to be implemented
+      markLocation(); //play the buzzer in this function //to be implemented
       sendDone(); //edited
       break;
     //////////////////////////////////////////////////////////////////////////////////////
