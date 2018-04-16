@@ -374,14 +374,16 @@ ISR(INT1_vect) {
 // with bare-metal code.
 void setupSerial() {
   // To replace later with bare-metal.
-  Serial.begin(9600);
+  //Serial.begin(9600);
+  UBRR0L = 103;  //CHANGES 12042018
+  UBRR0H = 0;     //CHANGES 12042018
+
 
   //USART to work at 9600 in 8N1 format
-  //UCSR0C = 0b00000110; // Set USART to Asynchronous mode, N partity mode, 1 stop bit and 8-bit character size
-
+  UCSR0C = 0b00000110; // Set USART to Asynchronous mode, N partity mode, 1 stop bit and 8-bit character size
+  UCSR0A = 0;
+  
   // Set baud rate to 9600
-  //UBRR0L = 103;  //CHANGES 12042018
-  //UBRR0H = 0;     //CHANGES 12042018
     
 }
 
@@ -396,21 +398,27 @@ void startSerial() {
   // Start the serial port
   // Enable RXC and UDRIE0
   // Enable USART receiver and transmitter
-  //UCSR0B = 0b10111000; 
+  // UCSR0B = 0b10111000;
+
+  // Using polling for transmitting
+  UCSR0B = 0b10011000; 
 }
 
-/*
+
 void setupBuffers()
 {
   // Initialize the receive and transmit buffers.
   initBuffer(&_recvBuffer, RECV_SIZE);
-  initBuffer(&_xmitBuffer, XMIT_SIZE);
+  //initBuffer(&_xmitBuffer, XMIT_SIZE);
 }
+
 ISR(USART_RX_vect) {
   // Write received data
   unsigned char data = UDR0;
   writeBuffer(&_recvBuffer, data);
 }
+
+/*
 ISR(USART_UDRE_vect) {
   unsigned char data;
   TBufferResult result = readBuffer(&_xmitBuffer, &data);
@@ -426,9 +434,9 @@ ISR(USART_UDRE_vect) {
 // ch if available. Also returns TRUE if ch is valid.
 // This will be replaced later with bare-metal code.
 
-int readSerial(char *buffer) {
+int readSerial(unsigned char *line) {
 
-  
+  /*
   int count=0;
 
   while(Serial.available())
@@ -436,23 +444,25 @@ int readSerial(char *buffer) {
 
   return count;
   
-  /*
+  */
   int count = 0;
+  
   TBufferResult result;
+  
   do {
-    result = readBuffer(&_recvBuffer, &buffer[count]);
+    result = readBuffer(&_recvBuffer, &line[count]);
     if (result == BUFFER_OK)
       count++;
   } while (result == BUFFER_OK);
+  
   return count;
-  */
 }
 
 // Write to the serial port. Replaced later with
 // bare-metal code
 
-void writeSerial(const char *buffer, int len) {
-  Serial.write(buffer, len);
+void writeSerial(const unsigned char *line, int len) {
+  //Serial.write(buffer, len);
 
   /*
   TBufferResult result = BUFFER_OK;
@@ -462,6 +472,13 @@ void writeSerial(const char *buffer, int len) {
   UDR0 = buffer[0];
   UCSR0B |= 0b00100000;
   */
+
+  // Using polling to write to Pi
+  while (len--){
+      while ((UCSR0A & 0b00100000) == 0);
+      UDR0 = *line;
+      line++;
+  }
 }
 
 /*
@@ -945,7 +962,7 @@ void setup() {
   cli();
   setupEINT();
   setupSerial();
-  //setupBuffers();
+  setupBuffers();
   startSerial();
   setupBuzzer();
   setupMotors();
