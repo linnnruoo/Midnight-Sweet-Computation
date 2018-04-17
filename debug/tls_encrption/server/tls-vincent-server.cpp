@@ -37,7 +37,7 @@ int listenfd, connfd;
 // NEW: SSL related structures
 SSL_CTX *ctx; // SSL Context
 SSL *ssl; // SSL Session
-
+//
 /*
 
 	Vincent Serial Routines to the Arduino
