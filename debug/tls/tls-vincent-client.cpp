@@ -133,7 +133,7 @@ void sendData(const char *buffer, int len)
 	{
 		/* TODO: Insert SSL write here to write buffer to network */
 		
-		int c = SSL_write(ssl, buffer, strlen(buffer)+1);
+		int c = SSL_write(ssl, buffer, len);
 
 		/* END TODO */	
 		networkActive = (c > 0);
@@ -211,7 +211,7 @@ void connectToServer(const char *serverName, int portNum)
 
 	/* TODO: Call connectSSL to create an SSL session, with host name
 	   		verification */
-	ssl = connectSSL(ctx, sockfd, "172.17.63.79");
+	ssl = connectSSL(ctx, sockfd, "172.20.10.4");
 
 	/* END TODO */
 

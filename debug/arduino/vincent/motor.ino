@@ -9,8 +9,8 @@
 #define RR                  10  // Right reverse pin
 
 // Calibrated values for Vincent to move straight
-#define ADJUSTMENT_PWM_FWD      25
-#define ADJUSTMENT_PWM_REV      22
+#define ADJUSTMENT_PWM_FWD      7
+#define ADJUSTMENT_PWM_REV      2
 
  
 // Variables to hold PWM values
@@ -141,7 +141,7 @@ void left(float ang, float speed) {
   analogWrite(RR, 0);
   */
 
-  pwm_speed_RF = val;
+  pwm_speed_RF = 0;
   pwm_speed_LR = val;
   
   leftMotorReverse();
@@ -178,7 +178,7 @@ void right(float ang, float speed) {
   analogWrite(RF, 0);
   */
   pwm_speed_LF = val;
-  pwm_speed_RR = val - 20;
+  pwm_speed_RR = 0;
     
   leftMotorForward();
   rightMotorReverse();
