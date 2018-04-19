@@ -11,6 +11,7 @@ Please note that files and programs in this repository together with their descr
 3. `/debug/` - This folder contains the current debug build of the Arduino and Master Control programs
 4. `/vanilla/` - This folder contains the vanilla build of the Arduino and Master Control programs
 5. `/others/` - This folder contains miscellaneous programs that are used for testing purposes
+6. `/final/ ` - This folder contains the finalized programs that were used for the demonstration and are submitted
     
 For most part of this readme, the instructions based on the Master Control program in the /Arduino/ and /Pi/ folders.
 
